@@ -65,6 +65,16 @@ main{flex:1 1 auto;display:grid;grid-template-columns:1fr 1fr;min-height:0}
 .stat i{display:block;font-style:normal;font-size:9px;letter-spacing:.11em;color:var(--dim);text-transform:uppercase}
 .stat b{font-weight:500;font-size:14px;color:var(--ink);font-variant-numeric:tabular-nums}
 .stat b.hot{color:var(--hot)} .stat b.sun{color:var(--sun)} .stat b.ok{color:var(--ok)}
+.stat b.marginal{color:var(--hot)}
+.stat b.marginal::after{content:"*";color:var(--dim);font-size:11px;vertical-align:super;margin-left:1px}
+/* mirrors .stat's two-line shape so showing it cannot resize the stats bar */
+.altnote{display:none;padding:7px 14px;border-right:1px solid var(--edge);flex:0 0 auto;
+  white-space:nowrap}
+.altnote.on{display:block}
+.altnote i{display:block;font-style:normal;font-size:9px;letter-spacing:.11em;
+  color:var(--hot);text-transform:uppercase}
+.altnote span{display:block;font-size:10.5px;line-height:1.28;color:var(--dim);margin-top:2px}
+.altnote b{color:var(--hot);font-weight:500}
 .stat.seek{cursor:pointer;transition:background-color .12s}
 .stat.seek:hover{background:#0E141F}
 .stat.seek:hover b{color:var(--sun)}
@@ -149,7 +159,9 @@ main{flex:1 1 auto;display:grid;grid-template-columns:1fr 1fr;min-height:0}
     <div class="ridge">
       <div>HORIZON OBSTRUCTION <b id="ridgeOut">0.0°</b></div>
       <input type="range" id="ridge" min="0" max="15" step="0.1" value="0">
-      <div style="margin-top:4px;font-size:9px;line-height:1.35">No terrain data is bundled — set what your own skyline blocks.</div>
+      <div style="margin-top:4px;font-size:9px;line-height:1.35">No terrain data is bundled — set what your own skyline blocks.
+        Altitudes are apparent, using standard-atmosphere refraction; within 1° of the horizon
+        the true value can differ by several arcminutes, so those verdicts are marginal.</div>
     </div>
   </div>
 </main>
@@ -157,7 +169,10 @@ main{flex:1 1 auto;display:grid;grid-template-columns:1fr 1fr;min-height:0}
 <div class="stats">
   <div class="stat"><i>Obscuration</i><b id="sObsc" class="sun">—</b></div>
   <div class="stat"><i>Magnitude</i><b id="sMag">—</b></div>
-  <div class="stat"><i>Sun altitude</i><b id="sAlt">—</b></div>
+  <div class="stat" id="altCell"
+       title="Apparent altitude — includes atmospheric refraction for a standard atmosphere (10 °C, 1010 mb)."><i>Sun altitude</i><b id="sAlt">—</b></div>
+  <div class="altnote" id="altNote"
+       title="Within a degree of the horizon, refraction varies by several arcminutes with temperature and pressure — larger than the margin being judged."><i>Near horizon</i><span>Refraction uncertain — <b>marginal</b></span></div>
   <div class="stat seek" data-seek="c1" role="button" tabindex="0"
        title="Jump the timeline to first contact"><i>First contact</i><b id="sC1">—</b></div>
   <div class="stat seek" data-seek="tMax" role="button" tabindex="0"
@@ -703,6 +718,10 @@ function refresh(){
   $("sObsc").textContent=(c.obsc*100).toFixed(2)+"%";
   $("sMag").textContent=c.mag>0?c.mag.toFixed(3):"—";
   $("sAlt").textContent=c.alt.toFixed(2)+"°";
+  // within a degree of the horizon the refraction model is the dominant error
+  const marginal=Math.abs(c.alt)<1.0;
+  $("sAlt").classList.toggle("marginal",marginal);
+  $("altNote").classList.toggle("on",marginal);
   $("clock").textContent=clockStr(tMin);
   const [a,b]=windowSpan();
   $("scrub").value=Math.round((tMin-a)/(b-a)*1000);
