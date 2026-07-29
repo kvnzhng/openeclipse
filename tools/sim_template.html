@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>openEclipse — solar eclipse simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Familjen+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0A0D14; --panel:#11151F; --edge:#232B3D; --edge2:#333D54;
+  --ink:#E9EEF7; --dim:#7D8AA3; --sun:#FFB020; --hot:#FF6A2B; --ring:#FFD24A;
+  --ok:#4FD1A5; --mono:"JetBrains Mono",ui-monospace,monospace;
+  --disp:"Familjen Grotesk",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);
+     font-size:13px;overflow:hidden;-webkit-font-smoothing:antialiased}
+#app{display:flex;flex-direction:column;height:100vh}
+
+/* header */
+header{display:flex;align-items:center;gap:14px;padding:9px 14px;background:#080B11;
+       border-bottom:1px solid var(--edge);flex-wrap:wrap;flex:0 0 auto}
+.brand{font-family:var(--disp);font-weight:700;letter-spacing:-.01em;font-size:15px;color:var(--sun)}
+.brand span{color:var(--ink)}
+.seg{display:flex;border:1px solid var(--edge2);border-radius:3px;overflow:hidden}
+.seg button{background:transparent;border:0;border-right:1px solid var(--edge2);color:var(--dim);
+  font-family:var(--mono);font-size:11px;padding:6px 11px;cursor:pointer}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed=true]{background:var(--sun);color:#0A0D14;font-weight:700}
+.seg button:hover:not([aria-pressed=true]){color:var(--ink)}
+.spot{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+select,input[type=number]{background:var(--panel);color:var(--ink);border:1px solid var(--edge2);
+  border-radius:3px;padding:5px 7px;font-family:var(--mono);font-size:11px}
+.coord{color:var(--dim);font-size:11px}
+
+/* panes */
+main{flex:1 1 auto;display:grid;grid-template-columns:1fr 1fr;min-height:0}
+.pane{position:relative;min-width:0;min-height:0}
+.pane canvas{display:block;width:100%;height:100%;touch-action:none}
+#mapPane{border-right:1px solid var(--edge)}
+.hint{position:absolute;left:10px;top:10px;background:rgba(8,11,17,.82);border:1px solid var(--edge);
+      border-radius:3px;padding:5px 9px;font-size:10.5px;color:var(--dim);pointer-events:none}
+.zoom{position:absolute;left:10px;bottom:10px;display:flex;gap:5px}
+.skyctl{top:10px;bottom:auto}
+.skyctl button[aria-pressed=true]{background:var(--sun);color:#0A0D14;border-color:var(--sun);font-weight:700}
+.zoom button{width:27px;height:27px;background:rgba(8,11,17,.85);border:1px solid var(--edge2);
+  color:var(--ink);border-radius:3px;cursor:pointer;font-size:14px;line-height:1;font-family:var(--mono)}
+.zoom button:hover{border-color:var(--sun)}
+.legend{position:absolute;right:10px;bottom:10px;background:rgba(8,11,17,.85);
+  border:1px solid var(--edge);border-radius:3px;padding:7px 9px;font-size:9.5px;color:var(--dim)}
+.legend .bar{width:132px;height:7px;margin:4px 0 3px;border:1px solid var(--edge2)}
+.legend .row{display:flex;justify-content:space-between}
+.ridge{position:absolute;right:10px;bottom:10px;background:rgba(8,11,17,.85);border:1px solid var(--edge);
+  border-radius:3px;padding:7px 9px;font-size:10px;color:var(--dim);width:172px}
+.ridge input{width:100%;accent-color:var(--sun);margin:5px 0 0}
+.ridge b{color:var(--ink);font-weight:500}
+
+/* stats */
+.stats{display:flex;gap:0;background:#080B11;border-top:1px solid var(--edge);
+       flex:0 0 auto;overflow-x:auto}
+.stat{padding:7px 14px;border-right:1px solid var(--edge);white-space:nowrap;flex:0 0 auto}
+.stat i{display:block;font-style:normal;font-size:9px;letter-spacing:.11em;color:var(--dim);text-transform:uppercase}
+.stat b{font-weight:500;font-size:14px;color:var(--ink);font-variant-numeric:tabular-nums}
+.stat b.hot{color:var(--hot)} .stat b.sun{color:var(--sun)} .stat b.ok{color:var(--ok)}
+.stat.seek{cursor:pointer;transition:background-color .12s}
+.stat.seek:hover{background:#0E141F}
+.stat.seek:hover b{color:var(--sun)}
+.stat.seek:focus-visible{outline:1px solid var(--sun);outline-offset:-3px}
+.stat.seek[aria-disabled=true]{cursor:default}
+.stat.seek[aria-disabled=true]:hover{background:transparent}
+.stat.seek[aria-disabled=true]:hover b{color:var(--ink)}
+.about{margin-left:auto;border-right:0}
+.about .links{display:flex;align-items:center;gap:7px;font-size:13px;line-height:1.25}
+.about a{display:inline-flex;align-items:center;gap:4px;color:var(--dim);text-decoration:none}
+.about a:hover{color:var(--sun)}
+.about a:focus-visible{outline:1px solid var(--sun);outline-offset:2px;border-radius:2px}
+.about .sep{color:var(--edge2)}
+.about svg{width:12px;height:12px;flex:0 0 auto}
+
+/* transport */
+.transport{display:flex;align-items:center;gap:11px;padding:9px 14px;background:#06080D;
+  border-top:1px solid var(--edge);flex:0 0 auto;flex-wrap:wrap}
+.tbtn{width:31px;height:31px;background:var(--panel);border:1px solid var(--edge2);color:var(--ink);
+  border-radius:3px;cursor:pointer;font-size:12px;line-height:1}
+.tbtn:hover{border-color:var(--sun)}
+.tbtn.play{background:var(--sun);color:#0A0D14;border-color:var(--sun);font-weight:700}
+#scrub{display:block;width:100%;margin:0;accent-color:var(--sun)}
+.clock{font-size:19px;font-weight:700;color:var(--sun);font-variant-numeric:tabular-nums;letter-spacing:.01em}
+#tzsel{padding:5px 6px;font-size:11px;color:var(--dim)}
+.track{position:relative;flex:1 1 220px;min-width:150px}
+.marks{position:relative;height:9px;margin-top:-2px}
+.marks span{position:absolute;top:0;font-size:8px;color:var(--dim);transform:translateX(-50%)}
+.marks i{position:absolute;top:-13px;width:1px;height:7px;background:var(--edge2)}
+.marks i.c2{background:var(--hot);height:10px;top:-15px}
+
+@media (max-width:900px){
+  main{grid-template-columns:1fr;grid-template-rows:1fr 1fr}
+  #mapPane{border-right:0;border-bottom:1px solid var(--edge)}
+  .ridge{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app">
+
+<header>
+  <div class="brand">open<span>Eclipse</span></div>
+  <div class="seg" role="group" aria-label="Choose eclipse">
+    <button data-ev="2026" aria-pressed="true">12 AUG 2026</button>
+    <button data-ev="2027" aria-pressed="false">2 AUG 2027</button>
+    <button data-ev="2028" aria-pressed="false">26 JAN 2028</button>
+  </div>
+  <div class="spot">
+    <select id="preset" aria-label="Jump to a place"></select>
+    <span class="coord">lat <input type="number" id="ilat" step="0.01" style="width:76px"></span>
+    <span class="coord">lon <input type="number" id="ilon" step="0.01" style="width:76px"></span>
+  </div>
+</header>
+
+<main>
+  <div class="pane" id="mapPane">
+    <canvas id="map" role="img" aria-label="Map of maximum eclipse obscuration with the path of totality and a movable observing pin"></canvas>
+    <div class="hint">Click the map to drop a pin · scroll to zoom · drag to pan</div>
+    <div class="zoom">
+      <button id="zin" title="Zoom in">+</button>
+      <button id="zout" title="Zoom out">−</button>
+      <button id="zreset" title="Reset view" style="width:auto;padding:0 8px;font-size:10px">RESET</button>
+    </div>
+    <div class="legend">
+      <div>MAX OBSCURATION</div>
+      <div class="bar" id="lbar"></div>
+      <div class="row"><span>0%</span><span>100%</span></div>
+      <div style="margin-top:5px"><span style="color:var(--hot)">▉</span> <span id="bandkey">path of totality</span></div>
+    </div>
+  </div>
+  <div class="pane" id="skyPane">
+    <canvas id="sky" role="img" aria-label="Simulated sky at the selected location, showing the Sun and Moon and their tracks"></canvas>
+    <div class="zoom skyctl">
+      <button id="szin" title="Zoom in">+</button>
+      <button id="szout" title="Zoom out">−</button>
+      <button id="sfollow" aria-pressed="true" style="width:auto;padding:0 8px;font-size:10px"
+              title="Keep the Sun centred as time runs">FOLLOW</button>
+      <button id="szreset" style="width:auto;padding:0 8px;font-size:10px" title="Reset view">RESET</button>
+    </div>
+    <div class="ridge">
+      <div>HORIZON OBSTRUCTION <b id="ridgeOut">0.0°</b></div>
+      <input type="range" id="ridge" min="0" max="15" step="0.1" value="0">
+      <div style="margin-top:4px;font-size:9px;line-height:1.35">No terrain data is bundled — set what your own skyline blocks.</div>
+    </div>
+  </div>
+</main>
+
+<div class="stats">
+  <div class="stat"><i>Obscuration</i><b id="sObsc" class="sun">—</b></div>
+  <div class="stat"><i>Magnitude</i><b id="sMag">—</b></div>
+  <div class="stat"><i>Sun altitude</i><b id="sAlt">—</b></div>
+  <div class="stat seek" data-seek="c1" role="button" tabindex="0"
+       title="Jump the timeline to first contact"><i>First contact</i><b id="sC1">—</b></div>
+  <div class="stat seek" data-seek="tMax" role="button" tabindex="0"
+       title="Jump the timeline to maximum"><i>Maximum</i><b id="sMax">—</b></div>
+  <div class="stat seek" data-seek="c4" role="button" tabindex="0"
+       title="Jump the timeline to last contact"><i>Last contact</i><b id="sC4">—</b></div>
+  <div class="stat"><i>Type</i><b id="sType" class="hot">—</b></div>
+  <div class="stat"><i id="sCentralLbl">Totality</i><b id="sCentral" class="ok">—</b></div>
+  <div class="stat"><i>Max obscuration</i><b id="sMaxObsc">—</b></div>
+  <div class="stat about">
+    <i>Open source</i>
+    <span class="links">
+      <a href="https://github.com/kvnzhng/openeclipse" target="_blank" rel="noopener noreferrer"
+         title="View the source on GitHub">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>GitHub</a>
+      <span class="sep">·</span>
+      <a href="https://github.com/kvnzhng/openeclipse/blob/main/LICENSE" target="_blank" rel="noopener noreferrer"
+         title="MIT License — free to use, modify, and redistribute">MIT</a>
+    </span>
+  </div>
+</div>
+
+<div class="transport">
+  <button class="tbtn" id="toStart" title="Jump to start">⏮</button>
+  <button class="tbtn play" id="play" title="Play / pause">▶</button>
+  <button class="tbtn" id="toMax" title="Jump to maximum">⏭</button>
+  <div class="track">
+    <input type="range" id="scrub" min="0" max="1000" value="0">
+    <div class="marks" id="marks"></div>
+  </div>
+  <div class="clock"><span id="clock">--:--:--</span></div>
+  <select id="tzsel" aria-label="Time zone offset"></select>
+  <div class="seg" role="group" aria-label="Playback speed">
+    <button data-sp="1">1×</button>
+    <button data-sp="60" aria-pressed="true">60×</button>
+    <button data-sp="300">300×</button>
+    <button data-sp="600">600×</button>
+  </div>
+</div>
+</div>
+
+<script>
+const B = __BUNDLE__;
+
+/* ---------- constants shared with the Python engine ---------- */
+const R_E = 6378.137, K_SUN = 696000.0, K_MOON = 1738.09, FLAT = 0.99664719;
+const D2R = Math.PI/180, R2D = 180/Math.PI;
+
+const PRESETS = {
+  "2026":[["A Coruña — Paseo Marítimo",43.38,-8.41],["Oviedo",43.362,-5.849],["León",42.599,-5.567],
+          ["Burgos",42.344,-3.697],["Bilbao",43.263,-2.935],["Logroño",42.465,-2.445],
+          ["Zaragoza",41.649,-0.889],["Valencia",39.470,-0.376],["Palma",39.570,2.650],
+          ["Madrid (just outside)",40.417,-3.703],["Barcelona",41.390,2.170]],
+  "2027":[["Tarifa",36.014,-5.604],["Cádiz",36.527,-6.289],["Málaga",36.721,-4.421],
+          ["Ceuta",35.889,-5.321],["Tangier",35.760,-5.834],["Melilla",35.292,-2.938],
+          ["Granada",37.177,-3.599],["Marrakech",31.630,-8.010],["Sevilla",37.389,-5.984],
+          ["Madrid",40.417,-3.703]],
+  "2028":[["Sevilla",37.389,-5.984],["Cádiz",36.527,-6.289],["Córdoba",37.888,-4.779],
+          ["Málaga",36.721,-4.421],["Granada",37.177,-3.599],["Albacete",38.994,-1.859],
+          ["Alicante",38.345,-0.481],["Valencia",39.470,-0.376],["Palma",39.570,2.650],
+          ["Girona",41.979,2.821],["Madrid (partial)",40.417,-3.703]]
+};
+
+let evKey="2026", lat=43.38, lon=-8.41, ridgeDeg=0, tzOff=null;
+let skyZoom=1, follow=true, dpr=1;
+let tMin=0, playing=false, speed=60, lastFrame=0;
+let circCache=null;
+
+const $=id=>document.getElementById(id);
+const ev=()=>B.events[evKey];
+function t0Min(){ const [h,m]=ev().t0.split(":").map(Number); return h*60+m; }
+
+/* ---------- ephemeris interpolation (4-point Lagrange) ---------- */
+function eph(minUTC){
+  const e=ev(), rows=e.eph, x=(minUTC - t0Min())/e.stepMin;
+  let i=Math.floor(x); i=Math.max(1,Math.min(rows.length-3,i));
+  const idx=[i-1,i,i+1,i+2], out=new Array(7).fill(0);
+  for(let k=0;k<4;k++){
+    let L=1;
+    for(let m=0;m<4;m++) if(m!==k) L*=(x-idx[m])/(idx[k]-idx[m]);
+    for(let c=0;c<7;c++) out[c]+=rows[idx[k]][c]*L;
+  }
+  return out;
+}
+
+/* ---------- topocentric circumstances ---------- */
+function circ(minUTC, la, lo){
+  const [sra,sdec,sr,mra,mdec,mr,gast]=eph(minUTC);
+  const lst=(gast+lo)*D2R, phi=la*D2R;
+  const u=Math.atan(FLAT*Math.tan(phi));
+  const rc=Math.cos(u), rs=FLAT*Math.sin(u);
+  const ox=rc*Math.cos(lst), oy=rc*Math.sin(lst), oz=rs;
+
+  function topo(ra,dec,r){
+    ra*=D2R; dec*=D2R;
+    const x=r*Math.cos(dec)*Math.cos(ra)-ox,
+          y=r*Math.cos(dec)*Math.sin(ra)-oy,
+          z=r*Math.sin(dec)-oz;
+    const d=Math.hypot(x,y,z);
+    return {ra:Math.atan2(y,x), dec:Math.asin(z/d), d:d};
+  }
+  const S=topo(sra,sdec,sr), M=topo(mra,mdec,mr);
+  const cs=Math.sin(S.dec)*Math.sin(M.dec)+Math.cos(S.dec)*Math.cos(M.dec)*Math.cos(S.ra-M.ra);
+  const sep=Math.acos(Math.max(-1,Math.min(1,cs)))*R2D;
+  const s1=Math.asin(K_SUN/(S.d*R_E))*R2D, s2=Math.asin(K_MOON/(M.d*R_E))*R2D;
+
+  function altaz(P){
+    const ha=lst-P.ra;
+    const alt=Math.asin(Math.sin(P.dec)*Math.sin(phi)+Math.cos(P.dec)*Math.cos(phi)*Math.cos(ha));
+    const az=Math.atan2(-Math.sin(ha)*Math.cos(P.dec),
+              Math.cos(phi)*Math.sin(P.dec)-Math.sin(phi)*Math.cos(P.dec)*Math.cos(ha));
+    return {alt:alt*R2D, az:((az*R2D)+360)%360};
+  }
+  const sa=altaz(S), ma=altaz(M);
+  return {sep,s1,s2,alt:sa.alt,az:sa.az,malt:ma.alt,maz:ma.az,
+          obsc:obscuration(sep,s1,s2),
+          mag:magnitude(sep,s1,s2)};
+}
+
+function magnitude(sep,s1,s2){
+  if(sep>=s1+s2) return 0;                       // no contact
+  if(sep<=Math.abs(s1-s2)) return s2/s1;         // one disc wholly inside the other
+  return (s1+s2-sep)/(2*s1);                     // partial overlap
+}
+
+function obscuration(sep,s1,s2){
+  if(sep>=s1+s2) return 0;
+  if(sep<=Math.abs(s1-s2)) return s2>=s1?1:(s2*s2)/(s1*s1);
+  const a=s1,b=s2,c=sep;
+  const t1=Math.acos(Math.max(-1,Math.min(1,(a*a+c*c-b*b)/(2*a*c))));
+  const t2=Math.acos(Math.max(-1,Math.min(1,(b*b+c*c-a*a)/(2*b*c))));
+  return (a*a*(t1-Math.sin(2*t1)/2)+b*b*(t2-Math.sin(2*t2)/2))/(Math.PI*a*a);
+}
+
+/* ---------- contacts ---------- */
+function findContacts(la,lo){
+  const e=ev(), start=t0Min(), end=start+(e.eph.length-1)*e.stepMin;
+  const f1=c=>c.sep-(c.s1+c.s2);          // C1 / C4
+  const f2=c=>c.sep-Math.abs(c.s1-c.s2);  // C2 / C3
+  const step=0.25;                         // 15 s
+  let prev=circ(start,la,lo), pv1=f1(prev), pv2=f2(prev), pt=start;
+  let c1=null,c2=null,c3=null,c4=null, minSep=prev.sep, tMax=start, maxO=prev.obsc;
+  for(let t=start+step;t<=end;t+=step){
+    const c=circ(t,la,lo), v1=f1(c), v2=f2(c);
+    if(c.sep<minSep){minSep=c.sep;tMax=t;}
+    if(c.obsc>maxO)maxO=c.obsc;
+    if(pv1>0&&v1<=0) c1=bisect(f1,pt,t,la,lo);
+    if(pv1<=0&&v1>0) c4=bisect(f1,pt,t,la,lo);
+    if(pv2>0&&v2<=0) c2=bisect(f2,pt,t,la,lo);
+    if(pv2<=0&&v2>0) c3=bisect(f2,pt,t,la,lo);
+    pv1=v1; pv2=v2; pt=t;
+  }
+  // refine maximum
+  let a=tMax-step,b2=tMax+step;
+  const gr=(Math.sqrt(5)-1)/2;
+  for(let i=0;i<50;i++){
+    const p=b2-(b2-a)*gr, q=a+(b2-a)*gr;
+    if(circ(p,la,lo).sep<circ(q,la,lo).sep) b2=q; else a=p;
+  }
+  tMax=(a+b2)/2;
+  const cm=circ(tMax,la,lo);
+  return {c1,c2,c3,c4,tMax,maxObsc:Math.max(maxO,cm.obsc),
+          annular:cm.s2<cm.s1, central:c2!==null&&c3!==null,
+          any:c1!==null||c4!==null||cm.obsc>0};
+}
+function bisect(f,a,b,la,lo){
+  for(let i=0;i<44;i++){
+    const m=(a+b)/2;
+    if(f(circ(a,la,lo))*f(circ(m,la,lo))<=0) b=m; else a=m;
+  }
+  return (a+b)/2;
+}
+
+/* ---------- time helpers ---------- */
+function tzHours(){ return tzOff===null?ev().tz:tzOff; }
+function tzLabel(h){
+  const s=h<0?"−":"+", a=Math.abs(h);
+  return "UTC"+s+String(Math.floor(a)).padStart(2,"0")+":"+String(Math.round((a%1)*60)).padStart(2,"0");
+}
+function clockStr(minUTC){
+  const local=minUTC+tzHours()*60;
+  const s=Math.round(local*60), hh=Math.floor(s/3600)%24, mm=Math.floor(s/60)%60, ss=s%60;
+  return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0")+":"+String(ss).padStart(2,"0");
+}
+function hm(minUTC){ return clockStr(minUTC).slice(0,5); }
+
+/* ---------- map ---------- */
+const mapCv=$("map"), mctx=mapCv.getContext("2d");
+let view={cx:-3.5,cy:39.5,scale:26};   // scale = px per degree of longitude
+let imgCache={};
+
+function buildImages(key){
+  if(imgCache[key]) return imgCache[key];
+  const g=B.grid, e=B.events[key];
+  const ob=atob(e.obsc), bd=atob(e.band), n=g.nx*g.ny;
+  const mk=()=>{const c=document.createElement("canvas");c.width=g.nx;c.height=g.ny;return c;};
+  const cO=mk(), cB=mk();
+  const xO=cO.getContext("2d"), xB=cB.getContext("2d");
+  const iO=xO.createImageData(g.nx,g.ny), iB=xB.createImageData(g.nx,g.ny);
+  const ann=e.kind==="annular";
+  const BR=255, BG=ann?210:106, BB=ann?74:43;
+  for(let i=0;i<n;i++){
+    const row=(i/g.nx)|0, col=i%g.nx;
+    const dst=((g.ny-1-row)*g.nx+col)*4;      // stored south-up, image is north-up
+    const o=ob.charCodeAt(i)/254;
+    let r,gg,b2,a;
+    if(o<0.02){ r=12;gg=18;b2=30;a=80; }
+    else{
+      const t=Math.min(1,o);
+      r=Math.round(18+237*Math.pow(t,2.4));
+      gg=Math.round(38+150*Math.pow(t,1.7));
+      b2=Math.round(72+30*(1-t));
+      a=Math.round(105+135*t);
+    }
+    iO.data[dst]=r; iO.data[dst+1]=gg; iO.data[dst+2]=b2; iO.data[dst+3]=a;
+    // clearance: 128 is the exact limit, one unit = 0.01 arcmin
+    const al=Math.max(0,Math.min(1,(128-bd.charCodeAt(i))/8+0.5));
+    iB.data[dst]=BR; iB.data[dst+1]=BG; iB.data[dst+2]=BB; iB.data[dst+3]=Math.round(al*255);
+  }
+  xO.putImageData(iO,0,0); xB.putImageData(iB,0,0);
+  imgCache[key]={obsc:cO,band:cB};
+  return imgCache[key];
+}
+
+const PARALLEL=Math.cos(40*D2R);   // fixed, so panning does not squeeze the map
+function kx(){ return PARALLEL; }
+function toXY(lo,la,W,H){
+  return [W/2+(lo-view.cx)*view.scale*kx(), H/2-(la-view.cy)*view.scale];
+}
+function toLL(x,y,W,H){
+  return [view.cx+(x-W/2)/(view.scale*kx()), view.cy-(y-H/2)/view.scale];
+}
+
+function drawMap(){
+  const W=mapCv.width/dpr, H=mapCv.height/dpr, g=B.grid;
+  mctx.fillStyle="#070A10"; mctx.fillRect(0,0,W,H);
+
+  const im=buildImages(evKey);
+  const [x0,y0]=toXY(g.lon0,g.lat0+g.dlat*(g.ny-1),W,H);
+  const [x1,y1]=toXY(g.lon0+g.dlon*(g.nx-1),g.lat0,W,H);
+  mctx.imageSmoothingEnabled=true;
+  mctx.globalAlpha=0.92; mctx.drawImage(im.obsc,x0,y0,x1-x0,y1-y0);
+  mctx.globalAlpha=0.85; mctx.drawImage(im.band,x0,y0,x1-x0,y1-y0);
+  mctx.globalAlpha=1;
+
+  // coastlines
+  mctx.strokeStyle="rgba(190,205,230,.55)"; mctx.lineWidth=1;
+  mctx.beginPath();
+  for(const ring of B.coast){
+    for(let i=0;i<ring.length;i++){
+      const [X,Y]=toXY(ring[i][0],ring[i][1],W,H);
+      i?mctx.lineTo(X,Y):mctx.moveTo(X,Y);
+    }
+    mctx.closePath();
+  }
+  mctx.stroke();
+
+  // central line
+  const line=ev().line;
+  if(line.length>1){
+    mctx.strokeStyle="#FFE9B0"; mctx.lineWidth=1.6; mctx.setLineDash([5,4]);
+    mctx.beginPath();
+    line.forEach(([lo2,la2],i)=>{const [X,Y]=toXY(lo2,la2,W,H); i?mctx.lineTo(X,Y):mctx.moveTo(X,Y);});
+    mctx.stroke(); mctx.setLineDash([]);
+    mctx.fillStyle="rgba(255,233,176,.9)"; mctx.font="11px JetBrains Mono, monospace";
+    for(let i=0;i<line.length;i+=Math.max(1,Math.round(line.length/6))){
+      const [X,Y]=toXY(line[i][0],line[i][1],W,H);
+      if(X>0&&X<W&&Y>0&&Y<H){ mctx.fillRect(X-2,Y-2,4,4); mctx.fillText(hm(line[i][2]),X+6,Y-5); }
+    }
+  }
+
+  // pin
+  const [px,py]=toXY(lon,lat,W,H);
+  mctx.strokeStyle="#0A0D14"; mctx.lineWidth=3.5;
+  mctx.beginPath(); mctx.arc(px,py,7,0,6.284); mctx.stroke();
+  mctx.strokeStyle="#FFFFFF"; mctx.lineWidth=1.8;
+  mctx.beginPath(); mctx.arc(px,py,7,0,6.284); mctx.stroke();
+  mctx.beginPath(); mctx.moveTo(px-12,py); mctx.lineTo(px-9,py);
+  mctx.moveTo(px+9,py); mctx.lineTo(px+12,py);
+  mctx.moveTo(px,py-12); mctx.lineTo(px,py-9);
+  mctx.moveTo(px,py+9); mctx.lineTo(px,py+12); mctx.stroke();
+  mctx.fillStyle="#fff"; mctx.beginPath(); mctx.arc(px,py,2,0,6.284); mctx.fill();
+}
+
+/* ---------- sky ---------- */
+const skyCv=$("sky"), sctx=skyCv.getContext("2d");
+let trackPts=null;
+
+function buildTrack(){
+  const e=ev(), start=t0Min(), end=start+(e.eph.length-1)*e.stepMin;
+  trackPts=[];
+  for(let t=start;t<=end;t+=2){
+    const c=circ(t,lat,lon);
+    trackPts.push({t,alt:c.alt,az:c.az,malt:c.malt,maz:c.maz});
+  }
+}
+
+function drawSky(){
+  const W=skyCv.width/dpr, H=skyCv.height/dpr;
+  const c=circCache=circ(tMin,lat,lon);
+  const CT=window.__contacts;
+
+  // camera: fit the whole arc at zoom 1, optionally locked onto the Sun
+  let peak=0; for(const p of trackPts) peak=Math.max(peak,p.alt);
+  const vTop=Math.max(18,Math.min(70,peak+9)), vBot=-7;
+  const scale=H/(vTop-vBot)*skyZoom;
+  const azMax=CT&&CT.tMax!=null?circ(CT.tMax,lat,lon).az:c.az;
+  const camAz=follow?c.az:azMax;
+  const camAlt=follow?c.alt:(vTop+vBot)/2;
+  const Y=alt=>H/2-(alt-camAlt)*scale;
+  const X=(az,alt)=>{
+    let d=((az-camAz+540)%360)-180;
+    return [W/2+d*scale, Y(alt)];
+  };
+  const spanY=H/scale, spanX=W/scale;
+  const gz=Math.min(2.1,Math.max(1,Math.pow(skyZoom,0.35)));   // marker growth
+  const labFs=Math.round(11.5*gz), dotR=3.1*gz;
+  const gstep=v=>v>110?30:v>55?20:v>26?10:v>11?5:v>4?2:v>1.6?1:v>0.7?0.5:0.2;
+  const stepA=gstep(spanY), stepZ=gstep(spanX);
+
+  // sky brightness falls with obscuration and with the sun getting low
+  const dark=Math.pow(1-c.obsc,0.55);
+  const lowf=Math.max(0,Math.min(1,(c.alt+2)/16));
+  const k=Math.max(0.05,dark);
+  const grad=sctx.createLinearGradient(0,0,0,H);
+  const mix=(a,b,f)=>a.map((v,i)=>Math.round(v+(b[i]-v)*f));
+  const top=mix([6,9,18],[16,34,78],k*0.9);
+  const hor=mix([12,14,26],[178,124,72],k*(0.35+0.65*(1-lowf*0.5)));
+  grad.addColorStop(0,`rgb(${top.join(",")})`);
+  grad.addColorStop(0.62,`rgb(${mix(top,hor,0.55).join(",")})`);
+  grad.addColorStop(1,`rgb(${hor.join(",")})`);
+  sctx.fillStyle=grad; sctx.fillRect(0,0,W,H);
+
+  // altitude grid
+  sctx.font="11px JetBrains Mono, monospace";
+  const aLo=Math.ceil((camAlt-spanY/2)/stepA)*stepA, aHi=camAlt+spanY/2;
+  for(let a=aLo;a<=aHi;a+=stepA){
+    const y=Y(a);
+    sctx.strokeStyle="rgba(190,205,230,.14)"; sctx.lineWidth=1;
+    sctx.beginPath(); sctx.moveTo(0,y); sctx.lineTo(W,y); sctx.stroke();
+    if(y>46||stepA<2){
+      sctx.fillStyle="rgba(190,205,230,.42)";
+      sctx.fillText((stepA<1?a.toFixed(1):Math.round(a))+"°",7,y-4);
+    }
+  }
+  const zHalf=spanX/2;
+  for(let d=-Math.ceil(zHalf/stepZ)*stepZ;d<=zHalf;d+=stepZ){
+    const az=((camAz+d)+3600)%360, [x]=X(az,0);
+    if(x<0||x>W) continue;
+    sctx.strokeStyle="rgba(190,205,230,.12)";
+    sctx.beginPath(); sctx.moveTo(x,0); sctx.lineTo(x,H); sctx.stroke();
+    sctx.fillStyle="rgba(190,205,230,.35)";
+    sctx.fillText((stepZ<1?az.toFixed(1):Math.round(az))+"°",x+3,Math.min(H-4,Y(0)+13));
+  }
+
+  // moon track — it closes on the sun through the window and pulls away after
+  sctx.strokeStyle="rgba(154,182,228,.45)"; sctx.lineWidth=1.4*gz; sctx.setLineDash([2*gz,5*gz]);
+  sctx.beginPath();
+  trackPts.forEach((p,i)=>{const [x,y]=X(p.maz,p.malt); i?sctx.lineTo(x,y):sctx.moveTo(x,y);});
+  sctx.stroke(); sctx.setLineDash([]);
+  sctx.fillStyle="rgba(154,182,228,.6)";
+  for(const p of trackPts){
+    const localMin=Math.round(p.t+tzHours()*60);
+    if(localMin%60!==0) continue;
+    const [x,y]=X(p.maz,p.malt);
+    if(x<10||x>W-10) continue;
+    sctx.beginPath(); sctx.arc(x,y,dotR*0.8,0,6.284); sctx.fill();
+  }
+
+  // sun track
+  sctx.strokeStyle="rgba(255,220,150,.45)"; sctx.lineWidth=1.4*gz; sctx.setLineDash([3*gz,4*gz]);
+  sctx.beginPath();
+  trackPts.forEach((p,i)=>{const [x,y]=X(p.az,p.alt); i?sctx.lineTo(x,y):sctx.moveTo(x,y);});
+  sctx.stroke(); sctx.setLineDash([]);
+  // hour labels on the track
+  sctx.fillStyle="rgba(255,220,150,.8)";
+  sctx.font=labFs+"px JetBrains Mono, monospace";
+  for(const p of trackPts){
+    const localMin=Math.round(p.t+tzHours()*60);
+    if(localMin%60!==0) continue;
+    const [x,y]=X(p.az,p.alt);
+    if(x<10||x>W-10) continue;
+    sctx.beginPath(); sctx.arc(x,y,dotR,0,6.284); sctx.fill();
+    sctx.fillText(hm(p.t),x+dotR+4,y-dotR-3);
+  }
+  sctx.font="11px JetBrains Mono, monospace";
+
+  // horizon + obstruction
+  const yH=Y(0);
+  sctx.strokeStyle="rgba(233,238,247,.5)"; sctx.lineWidth=1;
+  sctx.beginPath(); sctx.moveTo(0,yH); sctx.lineTo(W,yH); sctx.stroke();
+  const yR=Y(ridgeDeg);
+  sctx.fillStyle="#04060B";
+  sctx.beginPath(); sctx.moveTo(0,yR); sctx.lineTo(W,yR);
+  sctx.lineTo(W,H); sctx.lineTo(0,H); sctx.closePath(); sctx.fill();
+  if(ridgeDeg>0){
+    sctx.strokeStyle="rgba(255,255,255,.22)"; sctx.lineWidth=1;
+    sctx.beginPath(); sctx.moveTo(0,yR); sctx.lineTo(W,yR); sctx.stroke();
+  }
+
+  // the sun, at true angular size
+  const [sx,sy]=X(c.az,c.alt);
+  const rs=Math.max(3,c.s1*scale);
+  const blocked=c.alt<ridgeDeg;
+  if(!blocked){
+    const glow=sctx.createRadialGradient(sx,sy,rs*0.6,sx,sy,rs*7);
+    glow.addColorStop(0,`rgba(255,196,96,${0.42*(1-c.obsc*0.85)})`);
+    glow.addColorStop(1,"rgba(255,196,96,0)");
+    sctx.fillStyle=glow; sctx.beginPath(); sctx.arc(sx,sy,rs*7,0,6.284); sctx.fill();
+    drawPair(sctx,sx,sy,scale,c,rs,true);
+  }
+
+  // key
+  const ly=H-64;
+  sctx.lineWidth=2;
+  sctx.setLineDash([4,5]); sctx.strokeStyle="rgba(255,220,150,.8)";
+  sctx.beginPath(); sctx.moveTo(14,ly); sctx.lineTo(44,ly); sctx.stroke();
+  sctx.setLineDash([3,6]); sctx.strokeStyle="rgba(154,182,228,.75)";
+  sctx.beginPath(); sctx.moveTo(14,ly+20); sctx.lineTo(44,ly+20); sctx.stroke();
+  sctx.setLineDash([]);
+  sctx.font="500 13px JetBrains Mono, monospace";
+  sctx.fillStyle="rgba(255,220,150,.95)"; sctx.fillText("SUN",52,ly+4.5);
+  sctx.fillStyle="rgba(154,182,228,.95)"; sctx.fillText("MOON",52,ly+24.5);
+  sctx.font="12px JetBrains Mono, monospace";
+  sctx.fillStyle="rgba(190,205,230,.6)";
+  sctx.fillText("FOV "+spanX.toFixed(1)+"°"+(follow?"  ·  TRACKING":""),14,H-16);
+
+  // magnified inset
+  const iw=Math.min(210,W*0.38), ix=W-iw-12, iy=12;
+  sctx.fillStyle="rgba(6,8,13,.9)"; sctx.strokeStyle="#232B3D"; sctx.lineWidth=1;
+  sctx.beginPath(); sctx.rect(ix,iy,iw,iw*0.82); sctx.fill(); sctx.stroke();
+  const cx2=ix+iw/2, cy2=iy+iw*0.82/2-6, mscale=(iw*0.3)/c.s1;
+  sctx.save(); sctx.beginPath(); sctx.rect(ix,iy,iw,iw*0.82); sctx.clip();
+  drawPair(sctx,cx2,cy2,mscale,c,c.s1*mscale,true);
+  sctx.restore();
+  sctx.fillStyle="#E9EEF7"; sctx.font="700 16px JetBrains Mono, monospace";
+  sctx.textAlign="center";
+  sctx.fillText((c.obsc*100).toFixed(2)+"%",cx2,iy+iw*0.82-7);
+  sctx.textAlign="left";
+
+  if(blocked){
+    sctx.fillStyle="rgba(255,77,106,.16)"; sctx.fillRect(0,0,W,H);
+    sctx.fillStyle="#FF4D6A"; sctx.font="700 14px JetBrains Mono, monospace";
+    sctx.textAlign="center";
+    sctx.fillText(c.alt<0?"SUN HAS SET":"SUN BEHIND YOUR SKYLINE",W/2,H*0.5);
+    sctx.textAlign="left";
+  }
+}
+
+function drawPair(ctx,x,y,scale,c,rs,freeMoon){
+  // moon offset in the local tangent plane
+  const daz=((c.maz-c.az+540)%360)-180;
+  const dx=daz*Math.cos(c.alt*D2R)*scale, dy=-(c.malt-c.alt)*scale;
+  const rm=Math.max(2,c.s2*scale);
+  const total=c.obsc>0.999&&c.s2>=c.s1;
+
+  ctx.fillStyle="#FFC24A";
+  ctx.beginPath(); ctx.arc(x,y,rs,0,6.284); ctx.fill();
+
+  if(total){                                   // corona, then the disc over it
+    const cg=ctx.createRadialGradient(x+dx,y+dy,rm,x+dx,y+dy,rm*2.6);
+    cg.addColorStop(0,"rgba(232,240,255,.7)"); cg.addColorStop(1,"rgba(232,240,255,0)");
+    ctx.fillStyle=cg; ctx.beginPath(); ctx.arc(x+dx,y+dy,rm*2.6,0,6.284); ctx.fill();
+  }
+
+  ctx.save();
+  if(!freeMoon){ ctx.beginPath(); ctx.arc(x,y,rs,0,6.284); ctx.clip(); }
+  ctx.fillStyle="#05070C";
+  ctx.beginPath(); ctx.arc(x+dx,y+dy,rm,0,6.284); ctx.fill();
+  ctx.restore();
+  if(freeMoon){                                // rim, so it reads against night sky
+    ctx.strokeStyle="rgba(154,182,228,.45)"; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.arc(x+dx,y+dy,rm,0,6.284); ctx.stroke();
+  }
+}
+
+/* ---------- stats + timeline ---------- */
+function refreshContacts(){
+  window.__contacts=findContacts(lat,lon);
+  buildTrack();
+  const CT=window.__contacts, e=ev();
+  const span=windowSpan();
+  if(tMin<span[0]||tMin>span[1]) tMin=CT.tMax!=null?CT.tMax:(span[0]+span[1])/2;
+
+  $("sC1").textContent=CT.c1?clockStr(CT.c1):"—";
+  $("sC4").textContent=CT.c4?clockStr(CT.c4):"—";
+  $("sMax").textContent=CT.maxObsc>0?clockStr(CT.tMax):"—";
+
+  // a stat is only seekable while it actually has a time to seek to
+  for(const el of document.querySelectorAll(".stat.seek")){
+    const has=CT[el.dataset.seek]!=null && (el.dataset.seek!=="tMax" || CT.maxObsc>0);
+    el.setAttribute("aria-disabled", has?"false":"true");
+    if(has) el.setAttribute("tabindex","0"); else el.removeAttribute("tabindex");
+  }
+  $("sMaxObsc").textContent=(CT.maxObsc*100).toFixed(2)+"%";
+
+  const annular=CT.annular;
+  let type="NONE";
+  if(CT.central) type=annular?"ANNULAR":"TOTAL";
+  else if(CT.maxObsc>0) type="PARTIAL";
+  $("sType").textContent=type;
+  $("bandkey").textContent=annular?"path of annularity":"path of totality";
+  $("sType").className=CT.central?"hot":"";
+  $("sCentralLbl").textContent=annular?"Annularity":"Totality";
+  if(CT.central){
+    const d=Math.round((CT.c3-CT.c2)*60);
+    $("sCentral").textContent=clockStr(CT.c2)+" – "+clockStr(CT.c3)+"  ("+d+"s)";
+  } else $("sCentral").textContent="—";
+
+  // markers
+  const m=$("marks"); m.innerHTML="";
+  const [a,b]=span;
+  const put=(t,lab,cls)=>{
+    if(t==null) return;
+    const p=(t-a)/(b-a)*100;
+    if(p<0||p>100) return;
+    m.insertAdjacentHTML("beforeend",
+      `<i class="${cls||''}" style="left:${p}%"></i><span style="left:${p}%">${lab}</span>`);
+  };
+  put(CT.c1,"C1"); put(CT.c2,"C2","c2"); put(CT.c3,"C3","c2"); put(CT.c4,"C4");
+}
+
+function windowSpan(){
+  const CT=window.__contacts, e=ev();
+  const lo0=t0Min(), hi0=lo0+(e.eph.length-1)*e.stepMin;
+  if(CT&&CT.c1!=null&&CT.c4!=null) return [Math.max(lo0,CT.c1-15),Math.min(hi0,CT.c4+15)];
+  return [lo0,hi0];
+}
+
+function refresh(){
+  const c=circ(tMin,lat,lon);
+  $("sObsc").textContent=(c.obsc*100).toFixed(2)+"%";
+  $("sMag").textContent=c.mag>0?c.mag.toFixed(3):"—";
+  $("sAlt").textContent=c.alt.toFixed(2)+"°";
+  $("clock").textContent=clockStr(tMin);
+  const [a,b]=windowSpan();
+  $("scrub").value=Math.round((tMin-a)/(b-a)*1000);
+  drawMap(); drawSky();
+}
+
+/* ---------- sizing ---------- */
+function fit(){
+  dpr=window.devicePixelRatio||1;
+  for(const cv of [mapCv,skyCv]){
+    const r=cv.parentElement.getBoundingClientRect();
+    cv.width=Math.max(1,Math.round(r.width*dpr));
+    cv.height=Math.max(1,Math.round(r.height*dpr));
+    // draw in CSS pixels so text and markers are the size they claim to be
+    cv.getContext("2d").setTransform(dpr,0,0,dpr,0,0);
+  }
+  refresh();
+}
+
+/* ---------- interaction ---------- */
+let drag=null;
+mapCv.addEventListener("pointerdown",e=>{
+  drag={x:e.offsetX,y:e.offsetY,moved:0,cx:view.cx,cy:view.cy};
+  mapCv.setPointerCapture(e.pointerId);
+});
+mapCv.addEventListener("pointermove",e=>{
+  if(!drag) return;
+  const dx=e.offsetX-drag.x, dy=e.offsetY-drag.y;
+  drag.moved=Math.max(drag.moved,Math.hypot(dx,dy));
+  view.cx=drag.cx-dx/(view.scale*kx());
+  view.cy=drag.cy+dy/view.scale;
+  drawMap();
+});
+mapCv.addEventListener("pointerup",e=>{
+  if(drag&&drag.moved<4){
+    const [lo,la]=toLL(e.offsetX,e.offsetY,mapCv.width/dpr,mapCv.height/dpr);
+    setSpot(la,lo);
+  }
+  drag=null;
+});
+mapCv.addEventListener("pointercancel",()=>{ drag=null; });
+mapCv.addEventListener("wheel",e=>{
+  e.preventDefault();
+  const f=e.deltaY<0?1.18:1/1.18;
+  view.scale=Math.max(8,Math.min(700,view.scale*f));
+  drawMap();
+},{passive:false});
+$("zin").onclick=()=>{view.scale=Math.min(700,view.scale*1.35);drawMap();};
+$("zout").onclick=()=>{view.scale=Math.max(8,view.scale/1.35);drawMap();};
+$("zreset").onclick=()=>{view={cx:-3.5,cy:39.5,scale:26};drawMap();};
+
+function setSpot(la,lo,skipInputs){
+  lat=Math.max(-89,Math.min(89,la)); lon=((lo+540)%360)-180;
+  if(!skipInputs){ $("ilat").value=lat.toFixed(3); $("ilon").value=lon.toFixed(3); }
+  refreshContacts(); refresh();
+}
+
+function fillTz(){
+  const sel=$("tzsel"), cur=tzHours();
+  const offs=[-4,-3,-2,-1,0,1,2,3,4,5,6];
+  if(!offs.includes(cur)) offs.push(cur);
+  sel.innerHTML=offs.sort((a,b)=>a-b)
+    .map(h=>`<option value="${h}"${h===cur?" selected":""}>${tzLabel(h)}</option>`).join("");
+}
+$("tzsel").onchange=e=>{ tzOff=+e.target.value; refresh(); };
+
+function fillPresets(){
+  const sel=$("preset");
+  sel.innerHTML='<option value="">Jump to…</option>'+
+    PRESETS[evKey].map(([n,la,lo])=>`<option value="${la},${lo}">${n}</option>`).join("");
+}
+$("preset").onchange=e=>{
+  if(!e.target.value) return;
+  const [la,lo]=e.target.value.split(",").map(Number);
+  setSpot(la,lo);
+  view.cx=lo; view.cy=la; view.scale=Math.max(view.scale,55); drawMap();
+};
+$("ilat").onchange=()=>setSpot(parseFloat($("ilat").value)||lat,lon,true);
+$("ilon").onchange=()=>setSpot(lat,parseFloat($("ilon").value)||lon,true);
+
+document.querySelectorAll(".seg [data-ev]").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".seg [data-ev]").forEach(x=>x.setAttribute("aria-pressed","false"));
+  b.setAttribute("aria-pressed","true");
+  evKey=b.dataset.ev; tzOff=null; fillPresets(); fillTz();
+  tMin=-1e9; refreshContacts(); refresh();
+});
+document.querySelectorAll(".seg [data-sp]").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".seg [data-sp]").forEach(x=>x.setAttribute("aria-pressed","false"));
+  b.setAttribute("aria-pressed","true"); speed=+b.dataset.sp;
+});
+$("szin").onclick=()=>{skyZoom=Math.min(80,skyZoom*1.5);drawSky();};
+$("szout").onclick=()=>{skyZoom=Math.max(0.4,skyZoom/1.5);drawSky();};
+$("szreset").onclick=()=>{skyZoom=1;follow=true;$("sfollow").setAttribute("aria-pressed","true");drawSky();};
+$("sfollow").onclick=()=>{
+  follow=!follow; $("sfollow").setAttribute("aria-pressed",follow?"true":"false"); drawSky();
+};
+skyCv.addEventListener("wheel",e=>{
+  e.preventDefault();
+  skyZoom=Math.max(0.4,Math.min(80,skyZoom*(e.deltaY<0?1.18:1/1.18)));
+  drawSky();
+},{passive:false});
+$("ridge").oninput=e=>{ridgeDeg=+e.target.value;$("ridgeOut").textContent=ridgeDeg.toFixed(1)+"°";drawSky();};
+$("scrub").oninput=e=>{const [a,b]=windowSpan(); tMin=a+(b-a)*e.target.value/1000; refresh();};
+$("play").onclick=()=>{playing=!playing;$("play").textContent=playing?"❚❚":"▶";lastFrame=performance.now();};
+$("toStart").onclick=()=>{tMin=windowSpan()[0];refresh();};
+$("toMax").onclick=()=>{const CT=window.__contacts; if(CT&&CT.tMax!=null){tMin=CT.tMax;refresh();}};
+
+/* clicking a contact-time stat parks the scrubber on that moment */
+function pause(){ if(playing){ playing=false; $("play").textContent="▶"; } }
+function seekTo(t){
+  if(t==null) return;
+  pause();
+  const [a,b]=windowSpan();
+  tMin=Math.min(b,Math.max(a,t));
+  refresh();
+}
+for(const el of document.querySelectorAll(".stat.seek")){
+  const go=()=>{
+    if(el.getAttribute("aria-disabled")==="true") return;
+    const CT=window.__contacts;
+    if(CT) seekTo(CT[el.dataset.seek]);
+  };
+  el.addEventListener("click",go);
+  el.addEventListener("keydown",e=>{
+    if(e.key==="Enter"||e.key===" "){ e.preventDefault(); go(); }
+  });
+}
+
+function loop(now){
+  if(playing){
+    const dt=(now-lastFrame)/1000; lastFrame=now;
+    tMin+=dt*speed/60;
+    const [a,b]=windowSpan();
+    if(tMin>b){tMin=b;playing=false;$("play").textContent="▶";}
+    refresh();
+  }
+  requestAnimationFrame(loop);
+}
+
+// legend gradient
+(function(){
+  const bar=$("lbar");
+  bar.style.background="linear-gradient(90deg,"+
+    [0,.25,.5,.75,.9,1].map(o=>{
+      const r=Math.round(18+237*Math.pow(o,2.4)), g=Math.round(38+150*Math.pow(o,1.7)), b=Math.round(72+30*(1-o));
+      return `rgb(${r},${g},${b}) ${o*100}%`;
+    }).join(",")+")";
+})();
+
+window.addEventListener("resize",fit);
+fillPresets(); fillTz();
+$("ilat").value=lat.toFixed(3); $("ilon").value=lon.toFixed(3);
+refreshContacts();
+fit();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

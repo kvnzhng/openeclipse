@@ -1,0 +1,6 @@
+# Geocentric apparent positions of the Sun and Moon.
+# PyEphem wraps XEphem's libastro. https://rhodesmill.org/pyephem/
+ephem>=4.1
+
+# Vectorises the topocentric geometry over the lat/lon grid.
+numpy>=1.20

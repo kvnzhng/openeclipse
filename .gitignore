@@ -1,2 +1,9 @@
 .DS_Store
 .claude/settings.local.json
+
+# build artifacts (regenerate with tools/build_site.py + tools/build_data2.py)
+tools/ne50.geojson
+tools/bundle.json
+tools/openeclipse-simulator.html
+__pycache__/
+*.pyc

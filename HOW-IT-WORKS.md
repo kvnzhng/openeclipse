@@ -1,8 +1,11 @@
 # How openEclipse works
 
-openEclipse is a single HTML file with no build step and no network calls. Everything
-below happens either at build time (in a Python engine, offline) or in your browser as
-you move the pin.
+openEclipse ships as a single HTML file that makes no network calls. Everything below
+happens either at build time, in the Python pipeline under [`tools/`](tools/), or in
+your browser as you move the pin.
+
+The build side is documented in [`tools/README.md`](tools/README.md); the data sources
+and validation record are in [`SOURCES.md`](SOURCES.md).
 
 ## The central design decision
 
