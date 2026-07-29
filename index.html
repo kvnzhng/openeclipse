@@ -32,7 +32,7 @@ header{display:flex;align-items:center;gap:14px;padding:9px 14px;background:#080
   font-family:var(--mono);font-size:11px;padding:6px 11px;cursor:pointer}
 .seg button:last-child{border-right:0}
 .seg button[aria-pressed=true]{background:var(--sun);color:#0A0D14;font-weight:700}
-.seg button:hover:not([aria-pressed=true]){color:var(--ink)}
+@media (hover:hover){.seg button:hover:not([aria-pressed=true]){color:var(--ink)}}
 .spot{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 select,input[type=number]{background:var(--panel);color:var(--ink);border:1px solid var(--edge2);
   border-radius:3px;padding:5px 7px;font-family:var(--mono);font-size:11px}
@@ -43,14 +43,22 @@ main{flex:1 1 auto;display:grid;grid-template-columns:1fr 1fr;min-height:0}
 .pane{position:relative;min-width:0;min-height:0}
 .pane canvas{display:block;width:100%;height:100%;touch-action:none}
 #mapPane{border-right:1px solid var(--edge)}
+/* one pane filling the view. Higher specificity than the plain `main` rules,
+   so it overrides both the desktop split and the stacked phone layout. */
+main.solo{grid-template-columns:1fr;grid-template-rows:1fr}
+main.solo #mapPane{border-right:0;border-bottom:0}
+main .pane[hidden]{display:none}
 .hint{position:absolute;left:10px;top:10px;background:rgba(8,11,17,.82);border:1px solid var(--edge);
       border-radius:3px;padding:5px 9px;font-size:10.5px;color:var(--dim);pointer-events:none}
 .zoom{position:absolute;left:10px;bottom:10px;display:flex;gap:5px}
 .skyctl{top:10px;bottom:auto}
-.skyctl button[aria-pressed=true]{background:var(--sun);color:#0A0D14;border-color:var(--sun);font-weight:700}
+/* FOLLOW is a genuine on/off toggle and reads as amber when active. The
+   expand button carries its state in its label, so it is excluded — otherwise
+   it competes with FOLLOW and looks different from the map's copy. */
+.skyctl button[aria-pressed=true]:not(#skyFull){background:var(--sun);color:#0A0D14;border-color:var(--sun);font-weight:700}
 .zoom button{width:27px;height:27px;background:rgba(8,11,17,.85);border:1px solid var(--edge2);
   color:var(--ink);border-radius:3px;cursor:pointer;font-size:14px;line-height:1;font-family:var(--mono)}
-.zoom button:hover{border-color:var(--sun)}
+@media (hover:hover){.zoom button:hover{border-color:var(--sun)}}
 .legend{position:absolute;right:10px;bottom:10px;background:rgba(8,11,17,.85);
   border:1px solid var(--edge);border-radius:3px;padding:7px 9px;font-size:9.5px;color:var(--dim)}
 .legend .bar{width:132px;height:7px;margin:4px 0 3px;border:1px solid var(--edge2)}
@@ -91,7 +99,7 @@ main{flex:1 1 auto;display:grid;grid-template-columns:1fr 1fr;min-height:0}
 .about{margin-left:auto;border-right:0}
 .about .links{display:flex;align-items:center;gap:7px;font-size:13px;line-height:1.25}
 .about a{display:inline-flex;align-items:center;gap:4px;color:var(--dim);text-decoration:none}
-.about a:hover{color:var(--sun)}
+@media (hover:hover){.about a:hover{color:var(--sun)}}
 .about a:focus-visible{outline:1px solid var(--sun);outline-offset:2px;border-radius:2px}
 .about .sep{color:var(--edge2)}
 .about svg{width:12px;height:12px;flex:0 0 auto}
@@ -101,7 +109,7 @@ main{flex:1 1 auto;display:grid;grid-template-columns:1fr 1fr;min-height:0}
   border-top:1px solid var(--edge);flex:0 0 auto;flex-wrap:wrap}
 .tbtn{width:31px;height:31px;background:var(--panel);border:1px solid var(--edge2);color:var(--ink);
   border-radius:3px;cursor:pointer;font-size:12px;line-height:1}
-.tbtn:hover{border-color:var(--sun)}
+@media (hover:hover){.tbtn:hover{border-color:var(--sun)}}
 .tbtn.play{background:var(--sun);color:#0A0D14;border-color:var(--sun);font-weight:700}
 #scrub{display:block;width:100%;margin:0;accent-color:var(--sun)}
 .clock{font-size:19px;font-weight:700;color:var(--sun);font-variant-numeric:tabular-nums;letter-spacing:.01em}
@@ -187,6 +195,8 @@ main{flex:1 1 auto;display:grid;grid-template-columns:1fr 1fr;min-height:0}
       <button id="zin" title="Zoom in">+</button>
       <button id="zout" title="Zoom out">−</button>
       <button id="zreset" title="Reset view" style="width:auto;padding:0 8px;font-size:10px">RESET</button>
+      <button id="mapFull" aria-pressed="false" style="width:auto;padding:0 8px;font-size:10px"
+              title="Expand the map to fill the view">FULL</button>
     </div>
     <div class="legend">
       <div>MAX OBSCURATION</div>
@@ -203,6 +213,8 @@ main{flex:1 1 auto;display:grid;grid-template-columns:1fr 1fr;min-height:0}
       <button id="sfollow" aria-pressed="true" style="width:auto;padding:0 8px;font-size:10px"
               title="Keep the Sun centred as time runs">FOLLOW</button>
       <button id="szreset" style="width:auto;padding:0 8px;font-size:10px" title="Reset view">RESET</button>
+      <button id="skyFull" aria-pressed="false" style="width:auto;padding:0 8px;font-size:10px"
+              title="Expand the sky to fill the view">FULL</button>
     </div>
     <div class="ridge">
       <div>HORIZON OBSTRUCTION <b id="ridgeOut">0.0°</b></div>
@@ -892,6 +904,26 @@ $("scrub").oninput=e=>{const [a,b]=windowSpan(); tMin=a+(b-a)*e.target.value/100
 $("play").onclick=()=>{playing=!playing;$("play").textContent=playing?"❚❚":"▶";lastFrame=performance.now();};
 $("toStart").onclick=()=>{tMin=windowSpan()[0];refresh();};
 $("toMax").onclick=()=>{const CT=window.__contacts; if(CT&&CT.tMax!=null){tMin=CT.tMax;refresh();}};
+
+/* Expand either pane to fill the view and collapse the other, so you can work
+   in just the map or just the sky. fit() resizes both canvases to their new
+   box and redraws; without it the visible pane keeps the old dimensions. */
+let solo=null;
+function setSolo(next){
+  solo=next;
+  document.querySelector("main").classList.toggle("solo",!!solo);
+  $("mapPane").hidden = solo==="sky";
+  $("skyPane").hidden = solo==="map";
+  for(const [id,key,what] of [["mapFull","map","map"],["skyFull","sky","sky"]]){
+    const b=$(id), on=solo===key;
+    b.textContent = on?"SPLIT":"FULL";
+    b.setAttribute("aria-pressed",String(on));
+    b.title = on?"Show both panes again":"Expand the "+what+" to fill the view";
+  }
+  fit();
+}
+$("mapFull").onclick=()=>setSolo(solo==="map"?null:"map");
+$("skyFull").onclick=()=>setSolo(solo==="sky"?null:"sky");
 
 /* clicking a contact-time stat parks the scrubber on that moment */
 function pause(){ if(playing){ playing=false; $("play").textContent="▶"; } }
