@@ -15,6 +15,10 @@
   --disp:"Familjen Grotesk",system-ui,sans-serif;
 }
 *{box-sizing:border-box}
+/* Without this, a quick second tap on a control is taken as double-tap-to-zoom
+   and iOS zooms the whole page rather than the map. Tapping + twice to zoom in
+   is the obvious thing to do, so it has to work. Pinch zoom is unaffected. */
+button,select,input,.stat.seek{touch-action:manipulation}
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);
      font-size:13px;overflow:hidden;-webkit-font-smoothing:antialiased}
