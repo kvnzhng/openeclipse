@@ -18,7 +18,9 @@
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);
      font-size:13px;overflow:hidden;-webkit-font-smoothing:antialiased}
-#app{display:flex;flex-direction:column;height:100vh}
+/* dvh so mobile browser chrome does not sit on top of the transport bar;
+   the 100vh line stays as the fallback for engines without dvh */
+#app{display:flex;flex-direction:column;height:100vh;height:100dvh}
 
 /* header */
 header{display:flex;align-items:center;gap:14px;padding:9px 14px;background:#080B11;
@@ -76,8 +78,12 @@ main{flex:1 1 auto;display:grid;grid-template-columns:1fr 1fr;min-height:0}
 .altnote span{display:block;font-size:10.5px;line-height:1.28;color:var(--dim);margin-top:2px}
 .altnote b{color:var(--hot);font-weight:500}
 .stat.seek{cursor:pointer;transition:background-color .12s}
-.stat.seek:hover{background:#0E141F}
-.stat.seek:hover b{color:var(--sun)}
+/* hover only where hover exists — on touch it sticks after a tap and the
+   amber value reads as "selected" */
+@media (hover:hover){
+  .stat.seek:hover{background:#0E141F}
+  .stat.seek:hover b{color:var(--sun)}
+}
 .stat.seek:focus-visible{outline:1px solid var(--sun);outline-offset:-3px}
 .stat.seek[aria-disabled=true]{cursor:default}
 .stat.seek[aria-disabled=true]:hover{background:transparent}
@@ -106,10 +112,52 @@ main{flex:1 1 auto;display:grid;grid-template-columns:1fr 1fr;min-height:0}
 .marks i{position:absolute;top:-13px;width:1px;height:7px;background:var(--edge2)}
 .marks i.c2{background:var(--hot);height:10px;top:-15px}
 
+.hint .tch{display:none}
+
 @media (max-width:900px){
   main{grid-template-columns:1fr;grid-template-rows:1fr 1fr}
   #mapPane{border-right:0;border-bottom:1px solid var(--edge)}
   .ridge{display:none}
+}
+
+/* Phones. The desktop layout survives here but is not pleasant: the header
+   wraps to three rows before any map appears, and the stats bar scrolls the
+   contact times out of reach even though they are now tappable. */
+@media (max-width:620px){
+  header{gap:7px;padding:7px 10px}
+  .brand{font-size:13px;flex:0 0 auto}
+  .seg button{padding:5px 8px;font-size:10px}
+  .spot{margin-left:0;width:100%;gap:6px;flex-wrap:nowrap}
+  #preset{flex:1 1 60px;min-width:0}
+  .coord{flex:0 0 auto;display:flex;align-items:center;gap:4px}
+  .coord input[type=number]{width:68px!important;min-width:0}
+
+  /* the pointer wording is wrong on touch, and it wrapped across the map */
+  .hint{max-width:calc(100% - 20px);font-size:10px;padding:4px 7px}
+  .hint .ptr{display:none} .hint .tch{display:inline}
+
+  /* show every stat instead of scrolling seven of them off-screen */
+  .stats{flex-wrap:wrap;overflow-x:visible}
+  .stat{flex:1 1 33.333%;min-width:0;padding:5px 9px;
+        border-bottom:1px solid var(--edge)}
+  .stat i{font-size:8px;letter-spacing:.06em}
+  .stat b{font-size:12.5px}
+  /* the totality range is far longer than any other value and overflowed
+     into the next cell at one third width */
+  .stat.wide{flex-basis:66.666%}
+  .altnote{flex:1 1 100%;white-space:normal}
+  /* shares the last row rather than taking one of its own — that row is
+     pane height, which is scarce here */
+  .about{flex:1 1 auto;margin-left:0;border-right:0}
+  .about .links{font-size:12px;gap:6px}
+
+  /* reclaim height for the panes */
+  .transport{gap:8px;padding:7px 10px}
+  .tbtn{width:34px;height:34px}
+  .clock{font-size:16px}
+  .legend{padding:5px 7px;font-size:8.5px}
+  .legend .bar{width:92px;height:6px}
+  .zoom button{width:30px;height:30px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -134,7 +182,7 @@ main{flex:1 1 auto;display:grid;grid-template-columns:1fr 1fr;min-height:0}
 <main>
   <div class="pane" id="mapPane">
     <canvas id="map" role="img" aria-label="Map of maximum eclipse obscuration with the path of totality and a movable observing pin"></canvas>
-    <div class="hint">Click the map to drop a pin · scroll to zoom · drag to pan</div>
+    <div class="hint"><span class="ptr">Click the map to drop a pin · scroll to zoom · drag to pan</span><span class="tch">Tap to drop a pin · drag to pan · +/− to zoom</span></div>
     <div class="zoom">
       <button id="zin" title="Zoom in">+</button>
       <button id="zout" title="Zoom out">−</button>
@@ -180,7 +228,7 @@ main{flex:1 1 auto;display:grid;grid-template-columns:1fr 1fr;min-height:0}
   <div class="stat seek" data-seek="c4" role="button" tabindex="0"
        title="Jump the timeline to last contact"><i>Last contact</i><b id="sC4">—</b></div>
   <div class="stat"><i>Type</i><b id="sType" class="hot">—</b></div>
-  <div class="stat"><i id="sCentralLbl">Totality</i><b id="sCentral" class="ok">—</b></div>
+  <div class="stat wide"><i id="sCentralLbl">Totality</i><b id="sCentral" class="ok">—</b></div>
   <div class="stat"><i>Max obscuration</i><b id="sMaxObsc">—</b></div>
   <div class="stat about">
     <i>Open source</i>
@@ -602,6 +650,15 @@ function drawSky(){
 
   // key
   const ly=H-64;
+  // Backing panel, matching the map's overlays. On a short pane — a phone in
+  // portrait — the key sits right where the 0° altitude label lands, and the
+  // two were drawing over each other.
+  sctx.font="12px JetBrains Mono, monospace";
+  const fovTxt="FOV "+spanX.toFixed(1)+"°"+(follow?"  ·  TRACKING":"");
+  const boxW=Math.max(104,sctx.measureText(fovTxt).width+18), boxY=ly-15, boxH=H-8-boxY;
+  sctx.fillStyle="rgba(8,11,17,.8)"; sctx.fillRect(8,boxY,boxW,boxH);
+  sctx.strokeStyle="rgba(35,43,61,.9)"; sctx.lineWidth=1;
+  sctx.strokeRect(8.5,boxY+0.5,boxW-1,boxH-1);
   sctx.lineWidth=2;
   sctx.setLineDash([4,5]); sctx.strokeStyle="rgba(255,220,150,.8)";
   sctx.beginPath(); sctx.moveTo(14,ly); sctx.lineTo(44,ly); sctx.stroke();
