@@ -140,6 +140,29 @@ exact coordinates. Clicking one seeks the timeline to it.
 image. The obscuration field and path are drawn as cached offscreen canvases built once
 per event.
 
+### 6. Atmospheric refraction
+
+Altitudes are **apparent**, not geometric. `refract()` applies Bennett's (1982) formula,
+
+```
+R = 1 / tan(h + 7.31/(h + 4.4))        R in arcminutes, h in degrees
+```
+
+which lifts the Sun by about 34′ at the horizon, 5′ at 10°, and under 2′ above 30°.
+Below roughly −2° the series turns over and diverges at −4.4°, so the argument is clamped
+there; refraction saturates instead of misbehaving, keeping the curve continuous and
+monotonic for tracks that dip below the horizon.
+
+It is applied to altitude only — **never** to the separation the contacts are solved on.
+The Sun and Moon are within half a degree of each other and refract almost identically,
+so contact times and obscuration are unaffected. Applying it to both bodies separately
+does reproduce the flattening of a low Sun, which is what you actually see.
+
+This matters most where the app is most useful. For the 26 January 2028 annular eclipse,
+Palma's geometric altitude at maximum is −0.11° but its apparent altitude is +0.49° —
+refraction lifts the ring from just below the horizon to more than a solar diameter above
+it, reversing the answer to the question the horizon tool exists to ask.
+
 **Sky** — `buildTrack()` at [`index.html:451`](index.html#L451) samples `circ()` every
 2 minutes across the window to trace the Sun and Moon paths, then draws the pair at the
 current instant. The horizon-obstruction slider is a flat altitude cut-off; no terrain
@@ -157,8 +180,10 @@ data is bundled, which the panel says plainly.
 - **Grid resolution.** 0.3° is roughly 33 km, so the map's colours are a smooth
   approximation. Drag the pin a short distance and the totality duration will change
   while the background colour does not — the readouts are the finer instrument.
-- **No atmospheric refraction.** `altaz()` returns geometric altitude. Near the horizon
-  the true apparent altitude is higher by up to about half a degree.
+- **Refraction is a standard-atmosphere model.** Bennett's formula assumes 10 °C and
+  1010 mb. Real refraction near the horizon varies with temperature, pressure and
+  inversion layers by several arcminutes, so an altitude quoted as +0.2° is genuinely
+  uncertain — treat near-horizon verdicts as marginal rather than definitive.
 - **No terrain.** The horizon-obstruction slider is yours to set.
 - **ΔT** (the difference between Terrestrial and Universal Time) is not handled in the
   browser; it is baked into the precomputed ephemeris.

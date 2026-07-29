@@ -53,6 +53,18 @@ def topo(ra, dec, r, ov):
     return math.atan2(ty, tx), math.asin(tz / d), d
 
 
+def refract(h):
+    """Bennett (1982): geometric altitude -> apparent altitude, both degrees.
+
+    Below about -2 deg the series turns over and blows up at -4.4, so the
+    argument is clamped; refraction saturates rather than misbehaving. Applied
+    to altitude only, never to the separation the contacts are solved on: Sun
+    and Moon sit within half a degree of each other and refract almost alike.
+    """
+    hc = max(h, -2.0)
+    return h + (1.0 / math.tan(math.radians(hc + 7.31 / (hc + 4.4)))) / 60.0
+
+
 def circumstances(lat, lon, dt, elev=0.0):
     """Separation, semidiameters (all degrees), plus sun alt/az."""
     sra, sdec, sr = geocentric(ephem.Sun, dt)
@@ -78,7 +90,7 @@ def circumstances(lat, lon, dt, elev=0.0):
                     math.cos(math.radians(lat)) * math.sin(sdec_t) -
                     math.sin(math.radians(lat)) * math.cos(sdec_t) * math.cos(ha))
     return dict(sep=sep, s_sun=s_sun, s_moon=s_moon,
-                alt=math.degrees(alt), az=(math.degrees(az) + 360) % 360)
+                alt=refract(math.degrees(alt)), az=(math.degrees(az) + 360) % 360)
 
 
 def obscuration(sep, s1, s2):

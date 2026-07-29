@@ -243,6 +243,17 @@ function eph(minUTC){
   return out;
 }
 
+/* Bennett (1982): geometric altitude -> apparent, both in degrees. Below about
+   -2° the series turns over and then blows up at -4.4°, so the argument is
+   clamped there; refraction saturates instead of misbehaving, which keeps the
+   curve continuous and monotonic for tracks that dip under the horizon.
+   Applied to altitude only — never to the separation the contacts are solved
+   on, since Sun and Moon sit within half a degree and refract almost alike. */
+function refract(h){
+  const hc=Math.max(h,-2);
+  return h + (1/Math.tan((hc+7.31/(hc+4.4))*D2R))/60;
+}
+
 /* ---------- topocentric circumstances ---------- */
 function circ(minUTC, la, lo){
   const [sra,sdec,sr,mra,mdec,mr,gast]=eph(minUTC);
@@ -269,7 +280,7 @@ function circ(minUTC, la, lo){
     const alt=Math.asin(Math.sin(P.dec)*Math.sin(phi)+Math.cos(P.dec)*Math.cos(phi)*Math.cos(ha));
     const az=Math.atan2(-Math.sin(ha)*Math.cos(P.dec),
               Math.cos(phi)*Math.sin(P.dec)-Math.sin(phi)*Math.cos(P.dec)*Math.cos(ha));
-    return {alt:alt*R2D, az:((az*R2D)+360)%360};
+    return {alt:refract(alt*R2D), az:((az*R2D)+360)%360};
   }
   const sa=altaz(S), ma=altaz(M);
   return {sep,s1,s2,alt:sa.alt,az:sa.az,malt:ma.alt,maz:ma.az,

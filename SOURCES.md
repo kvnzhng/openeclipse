@@ -31,6 +31,11 @@ independently in [`tools/solar.py`](tools/solar.py) and used to verify altitudes
 published figures from Spain's
 [Instituto Geográfico Nacional (IGN)](https://www.ign.es/).
 
+**Atmospheric refraction — Bennett (1982)**, `R = 1/tan(h + 7.31/(h + 4.4))` arcminutes,
+as given in Meeus, *Astronomical Algorithms*, ch. 16. Applied to altitudes only, so
+contact times and obscuration are unaffected. See
+[HOW-IT-WORKS.md](HOW-IT-WORKS.md#6-atmospheric-refraction).
+
 ## Adopted constants
 
 Defined in [`tools/build_data.py`](tools/build_data.py) and mirrored in the JavaScript.
@@ -60,7 +65,20 @@ A Coruña (43.38, −8.41), 12 August 2026, against a published reference applic
 | C4 last contact | 21:21:54 | 21:21:49 | +5 s |
 | Obscuration at 20:08:06 CEST | 57.25 % | 57.44 % | −0.19 pt |
 | Magnitude at 20:08:06 CEST | 0.652 | 0.654 | −0.002 |
-| Sun altitude at maximum | 11.96° | — | — |
+| Sun altitude at maximum (apparent) | 12.04° | — | — |
+
+Refraction was added after this table was first recorded. It changes altitudes only —
+the contact times, obscuration and magnitude above are byte-identical before and after,
+which is the regression test for that change. The altitude at A Coruña moved from 11.96°
+geometric to 12.04° apparent.
+
+At low altitudes the effect is decisive rather than cosmetic. For 26 January 2028:
+
+| Site | Geometric | Apparent | |
+|---|---|---|---|
+| Palma | −0.11° | **+0.49°** | below → above the horizon |
+| Girona | −1.03° | −0.19° | still below, but marginal |
+| Valencia | +2.14° | +2.43° | |
 
 ### Recorded during development
 
@@ -99,8 +117,9 @@ uses 1738.09 km, so it is a close but not identical check. See
 
 - **No terrain.** The horizon-obstruction slider is user input, not a DEM-derived
   skyline. No elevation data is bundled.
-- **No atmospheric refraction** in the simulator's altitude readout — it is geometric
-  altitude. (`solar.py` does model refraction, but it is not part of the pipeline.)
+- **Refraction is modelled for a standard atmosphere only.** Bennett's formula assumes
+  10 °C and 1010 mb; real near-horizon refraction varies by several arcminutes with
+  temperature, pressure and inversion layers. Near-horizon verdicts are marginal.
 - **No place-name geocoding.** Presets and latitude/longitude entry only.
 - **ΔT** is handled inside PyEphem at build time; the browser does no time-scale
   conversion.

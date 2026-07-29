@@ -75,9 +75,13 @@ C2 totality begins   20:27:34   app says 20:26:59   Δ +35s
 Maximum              20:28:13   app says 20:27:39   Δ +34s
 C3 totality ends     20:28:52   app says 20:28:19   Δ +33s
 C4 last contact      21:21:54   app says 21:21:49   Δ +5s
-sun altitude         11.96°
+sun altitude         12.04°   azimuth 279.1°
 at 20:08:06 CEST → obsc 57.25%  mag 0.652   app says 57.44% / 0.654
 ```
+
+The altitude is apparent, not geometric — `refract()` applies Bennett's formula, mirroring
+the JavaScript. Refraction touches altitude only, so every contact time above is
+unchanged by it.
 
 C1, C4, obscuration and magnitude agree closely. The ~34 s offset through the central
 phase is expected at this particular pin: A Coruña sits near the umbral edge, where
