@@ -16,7 +16,14 @@ any observing site, and lets you scrub through the whole event on a timeline.
 - Live readouts for obscuration, magnitude, Sun altitude, contact times, eclipse type,
   and totality duration.
 - Timeline scrubbing with play/pause, jump to start or maximum, selectable time zone,
-  and 1×–600× playback.
+  and 1×–600× playback. Clicking a contact time seeks the timeline to that moment.
+
+## How it works
+
+The Sun and Moon ephemeris is precomputed and embedded; the topocentric geometry,
+disc overlap, and contact times are solved live in the browser for your exact
+coordinates. [HOW-IT-WORKS.md](HOW-IT-WORKS.md) documents the calculations, the data
+encoding, and the accuracy limits.
 
 ## Usage
 
@@ -28,6 +35,7 @@ local server required.
 ## Project Structure
 
 - `index.html` contains the app, styles, ephemeris calculations, and rendering.
+- `HOW-IT-WORKS.md` documents how the eclipse calculations work.
 - `assets/screenshot.png` is the screenshot used in this README.
 
 ## License
