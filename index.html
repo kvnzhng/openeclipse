@@ -429,8 +429,11 @@ function drawMap(){
   mctx.globalAlpha=0.85; mctx.drawImage(im.band,x0,y0,x1-x0,y1-y0);
   mctx.globalAlpha=1;
 
-  // coastlines
-  mctx.strokeStyle="rgba(190,205,230,.55)"; mctx.lineWidth=1;
+  // Coastlines. The field underneath runs from near-black to bright amber, so a
+  // single flat colour cannot hold: light lines vanish over the band, dark ones
+  // over open sea. A mid-tone blue contrasts with both ends, and a dark casing
+  // beneath it — the same trick the pin uses — carries it across the bright band.
+  mctx.lineJoin="round"; mctx.lineCap="round";
   mctx.beginPath();
   for(const ring of B.coast){
     for(let i=0;i<ring.length;i++){
@@ -439,7 +442,8 @@ function drawMap(){
     }
     mctx.closePath();
   }
-  mctx.stroke();
+  mctx.strokeStyle="rgba(5,9,18,.42)"; mctx.lineWidth=2.6; mctx.stroke();
+  mctx.strokeStyle="rgba(70,134,216,.95)"; mctx.lineWidth=1.1; mctx.stroke();
 
   // central line
   const line=ev().line;
