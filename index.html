@@ -115,14 +115,27 @@ main .pane[hidden]{display:none}
   border-radius:3px;cursor:pointer;font-size:12px;line-height:1}
 @media (hover:hover){.tbtn:hover{border-color:var(--sun)}}
 .tbtn.play{background:var(--sun);color:#0A0D14;border-color:var(--sun);font-weight:700}
-#scrub{display:block;width:100%;margin:0;accent-color:var(--sun)}
+/* The stock control is a fat pale knob that swallows the C2/C3 ticks. This is a
+   playhead instead: a slim amber bar on a thin track, with the elapsed portion
+   filled via --fill, which refresh() keeps in step with the scrub position. */
+#scrub{-webkit-appearance:none;appearance:none;display:block;width:100%;margin:0;
+  height:18px;background:transparent;cursor:pointer}
+#scrub::-webkit-slider-runnable-track{height:5px;border-radius:3px;
+  background:linear-gradient(to right,rgba(255,176,32,.62) var(--fill,0%),var(--edge2) var(--fill,0%))}
+#scrub::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:10px;height:16px;
+  margin-top:-5.5px;border-radius:2px;background:var(--sun);border:1px solid #05070C}
+#scrub::-moz-range-track{height:5px;border-radius:3px;
+  background:linear-gradient(to right,rgba(255,176,32,.62) var(--fill,0%),var(--edge2) var(--fill,0%))}
+#scrub::-moz-range-thumb{width:8px;height:16px;border-radius:2px;
+  background:var(--sun);border:1px solid #05070C}
+#scrub:focus-visible{outline:1px solid var(--sun);outline-offset:2px}
 .clock{font-size:19px;font-weight:700;color:var(--sun);font-variant-numeric:tabular-nums;letter-spacing:.01em}
 #tzsel{padding:5px 6px;font-size:11px;color:var(--dim)}
 .track{position:relative;flex:1 1 220px;min-width:150px}
 .marks{position:relative;height:9px;margin-top:-2px}
 .marks span{position:absolute;top:0;font-size:8px;color:var(--dim);transform:translateX(-50%)}
-.marks i{position:absolute;top:-13px;width:1px;height:7px;background:var(--edge2)}
-.marks i.c2{background:var(--hot);height:10px;top:-15px}
+.marks i{position:absolute;top:-12px;width:1px;height:8px;background:var(--edge2)}
+.marks i.c2{background:var(--hot);height:11px;top:-14px}
 
 .hint .tch{display:none}
 
@@ -494,9 +507,9 @@ function drawMap(){
   mctx.globalAlpha=1;
 
   // Coastlines. The field underneath runs from near-black to bright amber, so a
-  // single flat colour cannot hold: light lines vanish over the band, dark ones
-  // over open sea. A mid-tone blue contrasts with both ends, and a dark casing
-  // beneath it — the same trick the pin uses — carries it across the bright band.
+  // flat light stroke on its own washed out over the band. The dark casing
+  // beneath — the same trick the pin uses — is what carries the line across the
+  // bright part, which lets the stroke itself stay a neutral grey.
   mctx.lineJoin="round"; mctx.lineCap="round";
   mctx.beginPath();
   for(const ring of B.coast){
@@ -506,8 +519,8 @@ function drawMap(){
     }
     mctx.closePath();
   }
-  mctx.strokeStyle="rgba(5,9,18,.42)"; mctx.lineWidth=2.6; mctx.stroke();
-  mctx.strokeStyle="rgba(70,134,216,.95)"; mctx.lineWidth=1.1; mctx.stroke();
+  mctx.strokeStyle="rgba(5,9,18,.5)"; mctx.lineWidth=2.6; mctx.stroke();
+  mctx.strokeStyle="rgba(208,215,228,.92)"; mctx.lineWidth=1.1; mctx.stroke();
 
   // central line
   const line=ev().line;
@@ -664,29 +677,37 @@ function drawSky(){
     drawPair(sctx,sx,sy,scale,c,rs,true);
   }
 
-  // key
-  const ly=H-64;
-  // Backing panel, matching the map's overlays. On a short pane — a phone in
-  // portrait — the key sits right where the 0° altitude label lands, and the
-  // two were drawing over each other.
-  sctx.font="12px JetBrains Mono, monospace";
+  // Key, on a backing panel like the map's overlays — without one it drew over
+  // the 0° altitude label on a short pane. Everything scales with pane height so
+  // it stays in proportion instead of dominating a small view.
+  const ks=Math.max(0.7,Math.min(1,H/430));
+  const kRow=Math.round(15*ks), kSw=Math.round(24*ks), kTop=Math.round(10*ks);
+  const kF1=Math.max(9,Math.round(11*ks)), kF2=Math.max(8,Math.round(10*ks));
+  const kX=13+kSw+Math.round(8*ks);
   const fovTxt="FOV "+spanX.toFixed(1)+"°"+(follow?"  ·  TRACKING":"");
-  const boxW=Math.max(104,sctx.measureText(fovTxt).width+18), boxY=ly-15, boxH=H-8-boxY;
+
+  sctx.font=kF2+"px JetBrains Mono, monospace";
+  const fovW=sctx.measureText(fovTxt).width;
+  sctx.font="500 "+kF1+"px JetBrains Mono, monospace";
+  const boxH=kTop+kRow+Math.round(13*ks)+kF2+Math.round(8*ks);
+  const boxY=H-8-boxH;
+  const boxW=Math.max(Math.round(92*ks),kX+sctx.measureText("MOON").width+10,13+fovW+12);
   sctx.fillStyle="rgba(8,11,17,.8)"; sctx.fillRect(8,boxY,boxW,boxH);
   sctx.strokeStyle="rgba(35,43,61,.9)"; sctx.lineWidth=1;
   sctx.strokeRect(8.5,boxY+0.5,boxW-1,boxH-1);
-  sctx.lineWidth=2;
+
+  const ly=boxY+kTop;
+  sctx.lineWidth=Math.max(1.5,2*ks);
   sctx.setLineDash([4,5]); sctx.strokeStyle="rgba(255,220,150,.8)";
-  sctx.beginPath(); sctx.moveTo(14,ly); sctx.lineTo(44,ly); sctx.stroke();
+  sctx.beginPath(); sctx.moveTo(13,ly); sctx.lineTo(13+kSw,ly); sctx.stroke();
   sctx.setLineDash([3,6]); sctx.strokeStyle="rgba(154,182,228,.75)";
-  sctx.beginPath(); sctx.moveTo(14,ly+20); sctx.lineTo(44,ly+20); sctx.stroke();
+  sctx.beginPath(); sctx.moveTo(13,ly+kRow); sctx.lineTo(13+kSw,ly+kRow); sctx.stroke();
   sctx.setLineDash([]);
-  sctx.font="500 13px JetBrains Mono, monospace";
-  sctx.fillStyle="rgba(255,220,150,.95)"; sctx.fillText("SUN",52,ly+4.5);
-  sctx.fillStyle="rgba(154,182,228,.95)"; sctx.fillText("MOON",52,ly+24.5);
-  sctx.font="12px JetBrains Mono, monospace";
+  sctx.fillStyle="rgba(255,220,150,.95)"; sctx.fillText("SUN",kX,ly+kF1*0.35);
+  sctx.fillStyle="rgba(154,182,228,.95)"; sctx.fillText("MOON",kX,ly+kRow+kF1*0.35);
+  sctx.font=kF2+"px JetBrains Mono, monospace";
   sctx.fillStyle="rgba(190,205,230,.6)";
-  sctx.fillText("FOV "+spanX.toFixed(1)+"°"+(follow?"  ·  TRACKING":""),14,H-16);
+  sctx.fillText(fovTxt,13,boxY+boxH-Math.round(8*ks));
 
   // magnified inset
   // Bounded by pane height as well as width: on a phone the pane is wide but
@@ -776,14 +797,22 @@ function refreshContacts(){
   // markers
   const m=$("marks"); m.innerHTML="";
   const [a,b]=span;
-  const put=(t,lab,cls)=>{
-    if(t==null) return;
-    const p=(t-a)/(b-a)*100;
-    if(p<0||p>100) return;
-    m.insertAdjacentHTML("beforeend",
-      `<i class="${cls||''}" style="left:${p}%"></i><span style="left:${p}%">${lab}</span>`);
-  };
-  put(CT.c1,"C1"); put(CT.c2,"C2","c2"); put(CT.c3,"C3","c2"); put(CT.c4,"C4");
+  const pct=t=>t==null?null:(t-a)/(b-a)*100;
+  const on=p=>p!=null&&p>=0&&p<=100;
+  const tick=(p,cls)=>{ if(on(p)) m.insertAdjacentHTML("beforeend",
+      `<i class="${cls||''}" style="left:${p}%"></i>`); };
+  const label=(p,txt)=>{ if(on(p)) m.insertAdjacentHTML("beforeend",
+      `<span style="left:${p}%">${txt}</span>`); };
+
+  const p1=pct(CT.c1), p2=pct(CT.c2), p3=pct(CT.c3), p4=pct(CT.c4);
+  tick(p1); tick(p2,"c2"); tick(p3,"c2"); tick(p4);
+  label(p1,"C1"); label(p4,"C4");
+  // totality can be under a percent of the window, which put the C2 and C3
+  // labels on top of each other and read as one smeared word
+  const trackPx=m.getBoundingClientRect().width||300;
+  const minGap=(26/trackPx)*100;
+  if(on(p2)&&on(p3)&&p3-p2<minGap) label((p2+p3)/2,"C2·C3");
+  else { label(p2,"C2"); label(p3,"C3"); }
 }
 
 function windowSpan(){
@@ -804,7 +833,9 @@ function refresh(){
   $("altNote").classList.toggle("on",marginal);
   $("clock").textContent=clockStr(tMin);
   const [a,b]=windowSpan();
-  $("scrub").value=Math.round((tMin-a)/(b-a)*1000);
+  const frac=(tMin-a)/(b-a);
+  $("scrub").value=Math.round(frac*1000);
+  $("scrub").style.setProperty("--fill",(frac*100).toFixed(2)+"%");
   drawMap(); drawSky();
 }
 
