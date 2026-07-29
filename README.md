@@ -41,7 +41,3 @@ local server required.
 ## License
 
 MIT — see [LICENSE](LICENSE). Free to use, modify, and redistribute.
-
-## Contact
-
-<kevinzhang230@hotmail.com>
