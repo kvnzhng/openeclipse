@@ -32,4 +32,8 @@ local server required.
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE). Free to use, modify, and redistribute.
+
+## Contact
+
+<kevinzhang230@hotmail.com>
