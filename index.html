@@ -673,16 +673,19 @@ function drawSky(){
   sctx.fillText("FOV "+spanX.toFixed(1)+"°"+(follow?"  ·  TRACKING":""),14,H-16);
 
   // magnified inset
-  const iw=Math.min(210,W*0.38), ix=W-iw-12, iy=12;
+  // Bounded by pane height as well as width: on a phone the pane is wide but
+  // short, and sizing on width alone let the inset eat over half of it.
+  const iw=Math.min(210,W*0.38,H*0.42), ix=W-iw-12, iy=12;
   sctx.fillStyle="rgba(6,8,13,.9)"; sctx.strokeStyle="#232B3D"; sctx.lineWidth=1;
   sctx.beginPath(); sctx.rect(ix,iy,iw,iw*0.82); sctx.fill(); sctx.stroke();
-  const cx2=ix+iw/2, cy2=iy+iw*0.82/2-6, mscale=(iw*0.3)/c.s1;
+  const cx2=ix+iw/2, cy2=iy+iw*0.82/2-Math.max(4,Math.round(iw*0.029)), mscale=(iw*0.3)/c.s1;
   sctx.save(); sctx.beginPath(); sctx.rect(ix,iy,iw,iw*0.82); sctx.clip();
   drawPair(sctx,cx2,cy2,mscale,c,c.s1*mscale,true);
   sctx.restore();
-  sctx.fillStyle="#E9EEF7"; sctx.font="700 16px JetBrains Mono, monospace";
+  sctx.fillStyle="#E9EEF7";
+  sctx.font="700 "+Math.max(10,Math.min(16,Math.round(iw*0.076)))+"px JetBrains Mono, monospace";
   sctx.textAlign="center";
-  sctx.fillText((c.obsc*100).toFixed(2)+"%",cx2,iy+iw*0.82-7);
+  sctx.fillText((c.obsc*100).toFixed(2)+"%",cx2,iy+iw*0.82-Math.max(5,Math.round(iw*0.033)));
   sctx.textAlign="left";
 
   if(blocked){
