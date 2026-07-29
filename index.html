@@ -65,6 +65,13 @@ main{flex:1 1 auto;display:grid;grid-template-columns:1fr 1fr;min-height:0}
 .stat i{display:block;font-style:normal;font-size:9px;letter-spacing:.11em;color:var(--dim);text-transform:uppercase}
 .stat b{font-weight:500;font-size:14px;color:var(--ink);font-variant-numeric:tabular-nums}
 .stat b.hot{color:var(--hot)} .stat b.sun{color:var(--sun)} .stat b.ok{color:var(--ok)}
+.stat.seek{cursor:pointer;transition:background-color .12s}
+.stat.seek:hover{background:#0E141F}
+.stat.seek:hover b{color:var(--sun)}
+.stat.seek:focus-visible{outline:1px solid var(--sun);outline-offset:-3px}
+.stat.seek[aria-disabled=true]{cursor:default}
+.stat.seek[aria-disabled=true]:hover{background:transparent}
+.stat.seek[aria-disabled=true]:hover b{color:var(--ink)}
 .about{margin-left:auto;border-right:0}
 .about .links{display:flex;align-items:center;gap:7px;font-size:13px;line-height:1.25}
 .about a{display:inline-flex;align-items:center;gap:4px;color:var(--dim);text-decoration:none}
@@ -151,9 +158,12 @@ main{flex:1 1 auto;display:grid;grid-template-columns:1fr 1fr;min-height:0}
   <div class="stat"><i>Obscuration</i><b id="sObsc" class="sun">—</b></div>
   <div class="stat"><i>Magnitude</i><b id="sMag">—</b></div>
   <div class="stat"><i>Sun altitude</i><b id="sAlt">—</b></div>
-  <div class="stat"><i>First contact</i><b id="sC1">—</b></div>
-  <div class="stat"><i>Maximum</i><b id="sMax">—</b></div>
-  <div class="stat"><i>Last contact</i><b id="sC4">—</b></div>
+  <div class="stat seek" data-seek="c1" role="button" tabindex="0"
+       title="Jump the timeline to first contact"><i>First contact</i><b id="sC1">—</b></div>
+  <div class="stat seek" data-seek="tMax" role="button" tabindex="0"
+       title="Jump the timeline to maximum"><i>Maximum</i><b id="sMax">—</b></div>
+  <div class="stat seek" data-seek="c4" role="button" tabindex="0"
+       title="Jump the timeline to last contact"><i>Last contact</i><b id="sC4">—</b></div>
   <div class="stat"><i>Type</i><b id="sType" class="hot">—</b></div>
   <div class="stat"><i id="sCentralLbl">Totality</i><b id="sCentral" class="ok">—</b></div>
   <div class="stat"><i>Max obscuration</i><b id="sMaxObsc">—</b></div>
@@ -637,6 +647,13 @@ function refreshContacts(){
   $("sC1").textContent=CT.c1?clockStr(CT.c1):"—";
   $("sC4").textContent=CT.c4?clockStr(CT.c4):"—";
   $("sMax").textContent=CT.maxObsc>0?clockStr(CT.tMax):"—";
+
+  // a stat is only seekable while it actually has a time to seek to
+  for(const el of document.querySelectorAll(".stat.seek")){
+    const has=CT[el.dataset.seek]!=null && (el.dataset.seek!=="tMax" || CT.maxObsc>0);
+    el.setAttribute("aria-disabled", has?"false":"true");
+    if(has) el.setAttribute("tabindex","0"); else el.removeAttribute("tabindex");
+  }
   $("sMaxObsc").textContent=(CT.maxObsc*100).toFixed(2)+"%";
 
   const annular=CT.annular;
@@ -783,6 +800,27 @@ $("scrub").oninput=e=>{const [a,b]=windowSpan(); tMin=a+(b-a)*e.target.value/100
 $("play").onclick=()=>{playing=!playing;$("play").textContent=playing?"❚❚":"▶";lastFrame=performance.now();};
 $("toStart").onclick=()=>{tMin=windowSpan()[0];refresh();};
 $("toMax").onclick=()=>{const CT=window.__contacts; if(CT&&CT.tMax!=null){tMin=CT.tMax;refresh();}};
+
+/* clicking a contact-time stat parks the scrubber on that moment */
+function pause(){ if(playing){ playing=false; $("play").textContent="▶"; } }
+function seekTo(t){
+  if(t==null) return;
+  pause();
+  const [a,b]=windowSpan();
+  tMin=Math.min(b,Math.max(a,t));
+  refresh();
+}
+for(const el of document.querySelectorAll(".stat.seek")){
+  const go=()=>{
+    if(el.getAttribute("aria-disabled")==="true") return;
+    const CT=window.__contacts;
+    if(CT) seekTo(CT[el.dataset.seek]);
+  };
+  el.addEventListener("click",go);
+  el.addEventListener("keydown",e=>{
+    if(e.key==="Enter"||e.key===" "){ e.preventDefault(); go(); }
+  });
+}
 
 function loop(now){
   if(playing){
