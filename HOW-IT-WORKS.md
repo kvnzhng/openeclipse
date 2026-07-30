@@ -1,6 +1,8 @@
 # How openEclipse works
 
-openEclipse ships as a single HTML file that makes no network calls. Everything below
+openEclipse ships as a single HTML file. Place search is the one feature that calls out
+to the network — see [Place search](#place-search) — and everything else works with no
+connection at all: the eclipse maths, the map, the presets, and lat/lon entry. Everything below
 happens either at build time, in the Python pipeline under [`tools/`](tools/), or in
 your browser as you move the pin.
 
@@ -167,6 +169,34 @@ it, reversing the answer to the question the horizon tool exists to ask.
 2 minutes across the window to trace the Sun and Moon paths, then draws the pair at the
 current instant. The horizon-obstruction slider is a flat altitude cut-off; no terrain
 data is bundled, which the panel says plainly.
+
+## Place search
+
+The only part of the app that touches the network. Typing two or more characters queries
+a geocoder, debounced by 300 ms; picking a result sets the pin's latitude and longitude
+and recentres the map on it.
+
+Two keyless, CORS-open services are used, in order:
+
+1. **[Photon](https://photon.komoot.io/)** (komoot, OpenStreetMap data) — built for
+   type-ahead, and covers arbitrary places rather than only settlements, so airports,
+   landmarks and streets resolve.
+2. **[Open-Meteo geocoding](https://open-meteo.com/en/docs/geocoding-api)** — used only if
+   Photon is unreachable. GeoNames-based, so towns and cities but not arbitrary features.
+
+Neither needs an API key, which matters: `index.html` is served publicly, so any key in it
+would be readable by anyone.
+
+Three details worth knowing:
+
+- **Stale responses cannot win.** Each request carries a sequence number and a reply is
+  discarded if a newer keystroke has already fired, so fast typing can't leave you looking
+  at results for a prefix you have moved past.
+- **Result text is escaped, not trusted.** Names come from a third party and go through
+  `esc()` before reaching `innerHTML`.
+- **Failure is graceful.** If both services are unreachable the list shows *Search
+  unavailable*, and the curated presets and lat/lon entry keep working — so the app is
+  still fully usable offline, just without search.
 
 ## Accuracy and limits
 

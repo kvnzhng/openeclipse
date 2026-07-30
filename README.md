@@ -10,7 +10,8 @@ any observing site, and lets you scrub through the whole event on a timeline.
 
 - Three eclipses: 12 Aug 2026, 2 Aug 2027, and 26 Jan 2028.
 - Map pane with the obscuration field, the path of totality, and a pin you can drop
-  anywhere — or set by latitude/longitude, or pick from a preset list of places.
+  anywhere — or search for any place by name, set it by latitude/longitude, or pick from
+  a curated list of points on the path.
 - Sky pane showing the Sun and Moon and their tracks, with a horizon-obstruction slider
   for whatever your own skyline blocks.
 - Live readouts for obscuration, magnitude, Sun altitude, contact times, eclipse type,

@@ -1,8 +1,9 @@
 # Sources and validation
 
 Everything openEclipse displays is computed from the sources below by the scripts in
-[`tools/`](tools/). Nothing is fetched at runtime and no figures are transcribed from
-published tables — the published values appear only as validation targets.
+[`tools/`](tools/). No figures are transcribed from published tables — the published
+values appear only as validation targets. Place search is the sole runtime network call;
+every computed quantity is derived from data embedded at build time.
 
 ## Astronomical data
 
@@ -30,6 +31,11 @@ Rings are simplified with Ramer–Douglas–Peucker at ε = 0.05°.
 independently in [`tools/solar.py`](tools/solar.py) and used to verify altitudes against
 published figures from Spain's
 [Instituto Geográfico Nacional (IGN)](https://www.ign.es/).
+
+**Place search — [Photon](https://photon.komoot.io/) (komoot, OpenStreetMap data)**, with
+**[Open-Meteo geocoding](https://open-meteo.com/en/docs/geocoding-api)** as a fallback.
+Both are keyless and CORS-open; neither is bundled, and both are queried only when you
+type in the search box. A key was disqualified by the fact that `index.html` is public.
 
 **Atmospheric refraction — Bennett (1982)**, `R = 1/tan(h + 7.31/(h + 4.4))` arcminutes,
 as given in Meeus, *Astronomical Algorithms*, ch. 16. Applied to altitudes only, so
@@ -120,7 +126,10 @@ uses 1738.09 km, so it is a close but not identical check. See
 - **Refraction is modelled for a standard atmosphere only.** Bennett's formula assumes
   10 °C and 1010 mb; real near-horizon refraction varies by several arcminutes with
   temperature, pressure and inversion layers. Near-horizon verdicts are marginal.
-- **No place-name geocoding.** Presets and latitude/longitude entry only.
+- **Place search depends on a third party.** Names and coordinates come from Photon or
+  Open-Meteo at runtime, not from anything bundled, so search needs a connection and
+  inherits whatever those services get wrong. The eclipse figures for whatever point it
+  returns are still computed locally.
 - **ΔT** is handled inside PyEphem at build time; the browser does no time-scale
   conversion.
 
