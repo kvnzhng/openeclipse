@@ -1254,6 +1254,12 @@ $("ilat").value=lat.toFixed(3); $("ilon").value=lon.toFixed(3);
 refreshContacts();
 fit();              // sizes the canvases, which fitPath needs to frame against
 fitPath(); drawMap();
+// The webfont changes the height of the stats and transport bars, so the panes
+// are a different size once it lands. Without re-measuring, the canvases keep
+// their pre-font dimensions and the framing is computed against the wrong box —
+// which showed as a strip of the obscuration grid's edge along the top.
+if(document.fonts&&document.fonts.ready)
+  document.fonts.ready.then(()=>{ fit(); fitPath(); drawMap(); });
 requestAnimationFrame(loop);
 </script>
 </body>
