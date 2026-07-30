@@ -37,7 +37,9 @@ header{display:flex;align-items:center;gap:14px;padding:9px 14px;background:#080
 .seg button:last-child{border-right:0}
 .seg button[aria-pressed=true]{background:var(--sun);color:#0A0D14;font-weight:700}
 @media (hover:hover){.seg button:hover:not([aria-pressed=true]){color:var(--ink)}}
-.spot{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+/* nowrap: the search box shrinks to keep this on one line rather than pushing
+   lon onto a second row. The phone block below opts back into wrapping. */
+.spot{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:nowrap;min-width:0}
 select,input[type=number]{background:var(--panel);color:var(--ink);border:1px solid var(--edge2);
   border-radius:3px;padding:5px 7px;font-family:var(--mono);font-size:11px}
 .coord{color:var(--dim);font-size:11px}
@@ -45,7 +47,7 @@ select,input[type=number]{background:var(--panel);color:var(--ink);border:1px so
 /* place search. The header needs a stacking context of its own, otherwise the
    suggestion list paints underneath the canvases, which come later in the DOM. */
 header{position:relative;z-index:20}
-.search{position:relative;flex:1 1 190px;min-width:0}
+.search{position:relative;flex:1 1 160px;min-width:96px}
 #place{width:100%;background:var(--panel);color:var(--ink);border:1px solid var(--edge2);
   border-radius:3px;padding:5px 7px;font-family:var(--mono);font-size:11px}
 #place::placeholder{color:var(--dim)}
@@ -224,7 +226,7 @@ main .pane[hidden]{display:none}
   <div class="spot">
     <div class="search">
       <input id="place" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"
-             placeholder="Search any place…" aria-label="Search for a place" role="combobox"
+             placeholder="Search for a place…" aria-label="Search for a place" role="combobox"
              aria-expanded="false" aria-controls="placeList" aria-autocomplete="list">
       <ul id="placeList" role="listbox" aria-label="Place suggestions" hidden></ul>
     </div>
@@ -479,6 +481,36 @@ function hm(minUTC){ return clockStr(minUTC).slice(0,5); }
 /* ---------- map ---------- */
 const mapCv=$("map"), mctx=mapCv.getContext("2d");
 let view={cx:-3.5,cy:39.5,scale:26};   // scale = px per degree of longitude
+
+/* Frame the whole path of totality. The three events differ far too much for one
+   fixed scale to suit them — 2027 runs 75° of longitude out to Egypt, 2026 only
+   32° but 32° of latitude — so the opening view and RESET are derived from the
+   event's own centre line rather than hard-coded. */
+function fitPath(){
+  const ln=ev().line, g=B.grid;
+  const W=mapCv.width/dpr||900, H=mapCv.height/dpr||600;
+  const gLo0=g.lon0, gLo1=g.lon0+g.dlon*(g.nx-1);
+  const gLa0=g.lat0, gLa1=g.lat0+g.dlat*(g.ny-1);
+  let cx=-3.5, cy=39.5, s=26;
+  if(ln&&ln.length>1){
+    let lo0=1/0,lo1=-1/0,la0=1/0,la1=-1/0;
+    for(const p of ln){
+      if(p[0]<lo0)lo0=p[0]; if(p[0]>lo1)lo1=p[0];
+      if(p[1]<la0)la0=p[1]; if(p[1]>la1)la1=p[1];
+    }
+    const m=1.14;                                    // 14% breathing room
+    s=Math.min(W/(Math.max(2,lo1-lo0)*kx()*m), H/(Math.max(2,la1-la0)*m));
+    cx=(lo0+lo1)/2; cy=(la0+la1)/2;
+  }
+  // Never zoom out past the obscuration grid, and keep the frame inside it.
+  // Beyond those bounds the field stops filling the pane and its rectangular
+  // edge shows as a hard border, which reads as a rendering fault.
+  s=Math.min(400,Math.max(s, W/((gLo1-gLo0)*kx()), H/(gLa1-gLa0)));
+  const halfLo=W/(s*kx())/2, halfLa=H/s/2;
+  view={scale:s,
+        cx:Math.min(Math.max(cx,gLo0+halfLo),gLo1-halfLo),
+        cy:Math.min(Math.max(cy,gLa0+halfLa),gLa1-halfLa)};
+}
 let imgCache={};
 
 function buildImages(key){
@@ -911,10 +943,15 @@ mapCv.addEventListener("wheel",e=>{
 },{passive:false});
 $("zin").onclick=()=>{view.scale=Math.min(700,view.scale*1.35);drawMap();};
 $("zout").onclick=()=>{view.scale=Math.max(8,view.scale/1.35);drawMap();};
-$("zreset").onclick=()=>{view={cx:-3.5,cy:39.5,scale:26};drawMap();};
+$("zreset").onclick=()=>{fitPath();drawMap();};
 
 function setSpot(la,lo,skipInputs){
   lat=Math.max(-89,Math.min(89,la)); lon=((lo+540)%360)-180;
+  // The pin has moved, so a name left in the search box no longer describes it.
+  // choose() re-fills it straight after, so picking a result still shows a name.
+  // Queried directly: placeInp is a const declared further down, so it is not a
+  // window property and would still be in its temporal dead zone on early calls.
+  const pi=document.getElementById("place"); if(pi) pi.value="";
   if(!skipInputs){ $("ilat").value=lat.toFixed(3); $("ilon").value=lon.toFixed(3); }
   refreshContacts(); refresh();
 }
@@ -1118,7 +1155,8 @@ window.addEventListener("resize",fit);
 fillPresets(); fillTz();
 $("ilat").value=lat.toFixed(3); $("ilon").value=lon.toFixed(3);
 refreshContacts();
-fit();
+fit();              // sizes the canvases, which fitPath needs to frame against
+fitPath(); drawMap();
 requestAnimationFrame(loop);
 </script>
 </body>
