@@ -730,14 +730,25 @@ function drawSky(){
   const vTop=Math.max(18,Math.min(70,peak+9)), vBot=-7;
   const scale=H/(vTop-vBot)*skyZoom;
   const azMax=CT&&CT.tMax!=null?circ(CT.tMax,lat,lon).az:c.az;
+  const spanY=H/scale, spanX=W/scale;
   const camAz=follow?c.az:azMax;
-  const camAlt=follow?c.alt:(vTop+vBot)/2;
+  /* Follow tracks the Sun freely in azimuth, but vertical lock stops at a
+     floor: the horizon may rise no higher than ~78% down the pane. Without it
+     a setting Sun drags the horizon to mid-pane and the near-black ground
+     reads as the panel itself shrinking. Soft max, so scrubbing eases the
+     camera to a stop at the floor instead of kinking; the cap then gives the
+     floor back up rather than let the Sun leave the frame. */
+  let camAlt=(vTop+vBot)/2;
+  if(follow){
+    const fl=0.28*spanY;
+    camAlt=0.5*(c.alt+fl+Math.hypot(c.alt-fl,0.1*spanY));
+    camAlt=Math.min(camAlt,c.alt+0.42*spanY);
+  }
   const Y=alt=>H/2-(alt-camAlt)*scale;
   const X=(az,alt)=>{
     let d=((az-camAz+540)%360)-180;
     return [W/2+d*scale, Y(alt)];
   };
-  const spanY=H/scale, spanX=W/scale;
   const gz=Math.min(2.1,Math.max(1,Math.pow(skyZoom,0.35)));   // marker growth
   const labFs=Math.round(11.5*gz), dotR=3.1*gz;
   const gstep=v=>v>110?30:v>55?20:v>26?10:v>11?5:v>4?2:v>1.6?1:v>0.7?0.5:0.2;
@@ -815,9 +826,17 @@ function drawSky(){
   sctx.strokeStyle="rgba(233,238,247,.5)"; sctx.lineWidth=1;
   sctx.beginPath(); sctx.moveTo(0,yH); sctx.lineTo(W,yH); sctx.stroke();
   const yR=Y(ridgeDeg);
-  sctx.fillStyle="#04060B";
-  sctx.beginPath(); sctx.moveTo(0,yR); sctx.lineTo(W,yR);
-  sctx.lineTo(W,H); sctx.lineTo(0,H); sctx.closePath(); sctx.fill();
+  /* The ground is a warm dark, never the page's blue-black: the pane has to
+     read as a fixed frame with a horizon inside it, not as a panel whose
+     bottom edge is wherever the sky gradient stops. Tracks k so the land
+     darkens through totality along with the sky. */
+  if(yR<H){
+    const gg=sctx.createLinearGradient(0,yR,0,H);
+    const gTop=mix([14,12,11],[44,34,24],k), gBot=mix([9,8,8],[20,16,13],k);
+    gg.addColorStop(0,`rgb(${gTop.join(",")})`);
+    gg.addColorStop(1,`rgb(${gBot.join(",")})`);
+    sctx.fillStyle=gg; sctx.fillRect(0,yR,W,H-yR);
+  }
   if(ridgeDeg>0){
     sctx.strokeStyle="rgba(255,255,255,.22)"; sctx.lineWidth=1;
     sctx.beginPath(); sctx.moveTo(0,yR); sctx.lineTo(W,yR); sctx.stroke();
