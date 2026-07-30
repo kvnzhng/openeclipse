@@ -54,15 +54,18 @@ def topo(ra, dec, r, ov):
 
 
 def refract(h):
-    """Bennett (1982): geometric altitude -> apparent altitude, both degrees.
+    """Saemundsson (1986): geometric altitude -> apparent altitude, both degrees.
 
-    Below about -2 deg the series turns over and blows up at -4.4, so the
-    argument is clamped; refraction saturates rather than misbehaving. Applied
-    to altitude only, never to the separation the contacts are solved on: Sun
-    and Moon sit within half a degree of each other and refract almost alike.
+    Bennett (1982) is the inverse relation, apparent -> true, so feeding it a
+    geometric altitude overestimates refraction by ~5.5' at the horizon; this
+    is its companion, and inverts Bennett to ~0.1'. Below about -2 deg the
+    series turns over and blows up, so the argument is clamped; refraction
+    saturates rather than misbehaving. Applied to altitude only, never to the
+    separation the contacts are solved on: Sun and Moon sit within half a
+    degree of each other and refract almost alike.
     """
     hc = max(h, -2.0)
-    return h + (1.0 / math.tan(math.radians(hc + 7.31 / (hc + 4.4)))) / 60.0
+    return h + (1.02 / math.tan(math.radians(hc + 10.3 / (hc + 5.11)))) / 60.0
 
 
 def circumstances(lat, lon, dt, elev=0.0):
@@ -114,10 +117,13 @@ def solve(lat, lon, t0, t1, target, elev=0.0, step=20):
     def f(t):
         c = circumstances(lat, lon, t, elev)
         return c['sep'] - target(c)
-    n = int((t1 - t0).total_seconds() // step)
+    total = (t1 - t0).total_seconds()
+    n = int(total // step)
+    ts = [t0 + timedelta(seconds=i * step) for i in range(1, n + 1)]
+    if n * step < total:      # trailing partial step: sample t1 or the bracket end is never scanned
+        ts.append(t1)
     prev_t, prev_v = t0, f(t0)
-    for i in range(1, n + 1):
-        t = t0 + timedelta(seconds=i * step)
+    for t in ts:
         v = f(t)
         if prev_v == 0:
             return prev_t

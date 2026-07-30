@@ -1,11 +1,14 @@
-"""Data bundle v2: continental obscuration field + true umbral path limits."""
+"""Data bundle v2: continental obscuration field + signed-clearance band field.
+
+Run it directly (or via `build_site.py build`) to write bundle.json. The band
+field is a parabola-refined minimum of sep-|s1-s2| per grid cell, which is what
+replaced the earlier march-perpendicular-to-the-centre-line path tracing.
+"""
 import json, math, base64, os
 import numpy as np
-import ephem
 from datetime import datetime, timedelta, timezone
 
-from build_data import (ephem_row, sep_grid, obsc, simplify, FLAT, R_E,
-                        K_SUN, K_MOON, AU_ER)
+from build_data import ephem_row, sep_grid, obsc, simplify, FLAT
 
 EVENTS = {
     "2026": dict(date=(2026, 8, 12), t0=(15, 0), t1=(21, 0),  tz=2, tzn="CEST",
@@ -66,15 +69,6 @@ def shadow_axis(row):
     return lon, lat
 
 
-def fine_rows(ev, step_s=5):
-    """Dense ephemeris so a 40-second totality cannot slip between samples."""
-    y, mo, d = ev["date"]
-    t0 = datetime(y, mo, d, *ev["t0"], tzinfo=timezone.utc)
-    t1 = datetime(y, mo, d, *ev["t1"], tzinfo=timezone.utc)
-    n = int((t1 - t0).total_seconds() // step_s)
-    return [ephem_row(t0 + timedelta(seconds=i * step_s)) for i in range(n + 1)]
-
-
 def central_line(ev, step_s=30):
     y, mo, d = ev["date"]
     t0 = datetime(y, mo, d, *ev["t0"], tzinfo=timezone.utc)
@@ -91,56 +85,6 @@ def central_line(ev, step_s=30):
             pts.append([round(lon, 3), round(lat, 3),
                         round((t - t0).total_seconds() / 60 + t0.hour * 60 + t0.minute, 2), i])
     return pts
-
-
-def is_central(lats, lons, rows):
-    """True where a total/annular phase occurs at some point in the window."""
-    lats = np.asarray(lats, float); lons = np.asarray(lons, float)
-    phi = np.radians(lats)
-    u = np.arctan(FLAT * np.tan(phi))
-    rc = np.cos(u); rs = FLAT * np.sin(u)
-    hit = np.zeros(lats.shape, bool)
-    for r in rows:
-        sep, s1, s2 = sep_grid(r, lats, lons, rc, rs)
-        hit |= (sep <= np.abs(s1 - s2))
-    return hit
-
-
-def path_limits(line, frows, ratio, reach=4.5, step=0.02, half=110):
-    """March perpendicular to the centre line until the central phase stops.
-
-    `ratio` converts a centre-line sample index into an index in `frows`;
-    only a window around that time is searched, which keeps it cheap and
-    fine enough to resolve a totality lasting a few seconds.
-    """
-    north, south, kept = [], [], []
-    offs = np.arange(step, reach, step)
-    for i, (lo, la, lab, si) in enumerate(line):
-        c = si * ratio
-        win = frows[max(0, c - half):c + half + 1]
-        if not is_central([la], [lo], win)[0]:
-            continue                      # no central phase here after all
-        j = min(len(line) - 1, i + 1); k = max(0, i - 1)
-        dlo = (line[j][0] - line[k][0]) * math.cos(math.radians(la))
-        dla = line[j][1] - line[k][1]
-        n = math.hypot(dlo, dla)
-        if n < 1e-9:
-            continue
-        # unit normal in local flat-earth coordinates
-        px, py = -dla / n, dlo / n
-        cosl = max(0.15, math.cos(math.radians(la)))
-        for sign, bucket in ((1, north), (-1, south)):
-            lons = lo + sign * offs * px / cosl
-            lats = la + sign * offs * py
-            ok = is_central(lats, lons, win)
-            idx = np.nonzero(~ok)[0]
-            last = (idx[0] - 1) if len(idx) else len(offs) - 1
-            if last >= 0:
-                bucket.append([round(float(lons[last]), 3), round(float(lats[last]), 3)])
-            else:
-                bucket.append([round(lo, 3), round(la, 3)])
-        kept.append([lo, la, lab])
-    return kept, north, south
 
 
 def coastlines():
@@ -175,65 +119,70 @@ def coastlines():
     return out
 
 
-lons = np.arange(LON0, LON1 + 1e-9, DLON)
-lats = np.arange(LAT0, LAT1 + 1e-9, DLAT)
-LONg, LATg = np.meshgrid(lons, lats)
-phi = np.radians(LATg)
-uu = np.arctan(FLAT * np.tan(phi))
-RC = np.cos(uu); RS = FLAT * np.sin(uu)
+def main(out="bundle.json"):
+    lons = np.arange(LON0, LON1 + 1e-9, DLON)
+    lats = np.arange(LAT0, LAT1 + 1e-9, DLAT)
+    LONg, LATg = np.meshgrid(lons, lats)
+    phi = np.radians(LATg)
+    uu = np.arctan(FLAT * np.tan(phi))
+    RC = np.cos(uu); RS = FLAT * np.sin(uu)
 
-bundle = {"grid": {"lon0": LON0, "lat0": LAT0, "dlon": DLON, "dlat": DLAT,
-                   "nx": len(lons), "ny": len(lats)},
-          "coast": coastlines(), "events": {}}
-print("coast rings:", len(bundle["coast"]), "pts:", sum(len(r) for r in bundle["coast"]))
+    bundle = {"grid": {"lon0": LON0, "lat0": LAT0, "dlon": DLON, "dlat": DLAT,
+                       "nx": len(lons), "ny": len(lats)},
+              "coast": coastlines(), "events": {}}
+    print("coast rings:", len(bundle["coast"]), "pts:", sum(len(r) for r in bundle["coast"]))
 
-for key, ev in EVENTS.items():
-    t0, rows = build_table(ev)
-    fine = []
-    for i in range(len(rows) - 1):
-        fine.append(rows[i])
-        fine.append(list((np.array(rows[i]) + np.array(rows[i + 1])) / 2))
-    fine.append(rows[-1])
+    for key, ev in EVENTS.items():
+        t0, rows = build_table(ev)
+        fine = []
+        for i in range(len(rows) - 1):
+            fine.append(rows[i])
+            fine.append(list((np.array(rows[i]) + np.array(rows[i + 1])) / 2))
+        fine.append(rows[-1])
 
-    O = np.zeros(LONg.shape)
-    # g = sep - |s1-s2|; g<=0 means a total/annular phase. Track the running
-    # minimum with its neighbours so it can be refined by a parabola fit,
-    # which resolves a totality far shorter than the sampling interval.
-    BIG = 1e9
-    best = np.full(LONg.shape, BIG)
-    bm1 = np.zeros(LONg.shape); bp1 = np.zeros(LONg.shape)
-    gpp = gp = None
-    for r in fine:
-        sep, s1, s2 = sep_grid(r, LATg, LONg, RC, RS)
-        O = np.maximum(O, obsc(sep, s1, s2))
-        g = sep - np.abs(s1 - s2)
-        if gp is not None and gpp is not None:
-            m = gp < best
-            best[m] = gp[m]; bm1[m] = gpp[m]; bp1[m] = g[m]
-        gpp, gp = gp, g
-    den = bp1 - 2 * best + bm1
-    refined = np.where(den > 1e-12, best - (bp1 - bm1) ** 2 / (8 * den), best)
-    refined = np.minimum(best, refined)
+        O = np.zeros(LONg.shape)
+        # g = sep - |s1-s2|; g<=0 means a total/annular phase. Track the running
+        # minimum with its neighbours so it can be refined by a parabola fit,
+        # which resolves a totality far shorter than the sampling interval.
+        BIG = 1e9
+        best = np.full(LONg.shape, BIG)
+        bm1 = np.zeros(LONg.shape); bp1 = np.zeros(LONg.shape)
+        gpp = gp = None
+        for r in fine:
+            sep, s1, s2 = sep_grid(r, LATg, LONg, RC, RS)
+            O = np.maximum(O, obsc(sep, s1, s2))
+            g = sep - np.abs(s1 - s2)
+            if gp is not None and gpp is not None:
+                m = gp < best
+                best[m] = gp[m]; bm1[m] = gpp[m]; bp1[m] = g[m]
+            gpp, gp = gp, g
+        den = bp1 - 2 * best + bm1
+        refined = np.where(den > 1e-12, best - (bp1 - bm1) ** 2 / (8 * den), best)
+        refined = np.minimum(best, refined)
 
-    def central_here(lo, la):
-        j = int(round((lo - LON0) / DLON)); i = int(round((la - LAT0) / DLAT))
-        if not (0 <= i < refined.shape[0] and 0 <= j < refined.shape[1]):
-            return False
-        return refined[i, j] <= 0
-    line = [[lo, la, tm] for lo, la, tm, _ in central_line(ev) if central_here(lo, la)]
+        def central_here(lo, la):
+            j = int(round((lo - LON0) / DLON)); i = int(round((la - LAT0) / DLAT))
+            if not (0 <= i < refined.shape[0] and 0 <= j < refined.shape[1]):
+                return False
+            return refined[i, j] <= 0
+        line = [[lo, la, tm] for lo, la, tm, _ in central_line(ev) if central_here(lo, la)]
 
-    # signed clearance, 0.01 arcmin per step, centred on 128 -> smooth band edge
-    gq = np.clip(np.round(128 + refined * 6000), 0, 255).astype(np.uint8)
+        # signed clearance, 0.01 arcmin per step, centred on 128 -> smooth band edge
+        gq = np.clip(np.round(128 + refined * 6000), 0, 255).astype(np.uint8)
 
-    bundle["events"][key] = {
-        "label": ev["label"], "kind": ev["kind"], "tz": ev["tz"], "tzn": ev["tzn"],
-        "date": list(ev["date"]), "t0": t0.strftime("%H:%M"), "stepMin": STEP_MIN,
-        "eph": rows, "line": line,
-        "obsc": base64.b64encode(np.round(O * 254).astype(np.uint8).tobytes()).decode(),
-        "band": base64.b64encode(gq.tobytes()).decode(),
-    }
-    print(f"{key}: eph {len(rows)}, centre {len(line)}, "
-          f"band cells {int((refined<=0).sum())}, peak obsc {O.max()*100:.2f}%")
+        bundle["events"][key] = {
+            "label": ev["label"], "kind": ev["kind"], "tz": ev["tz"], "tzn": ev["tzn"],
+            "date": list(ev["date"]), "t0": t0.strftime("%H:%M"), "stepMin": STEP_MIN,
+            "eph": rows, "line": line,
+            "obsc": base64.b64encode(np.round(O * 254).astype(np.uint8).tobytes()).decode(),
+            "band": base64.b64encode(gq.tobytes()).decode(),
+        }
+        print(f"{key}: eph {len(rows)}, centre {len(line)}, "
+              f"band cells {int((refined<=0).sum())}, peak obsc {O.max()*100:.2f}%")
 
-json.dump(bundle, open("bundle.json", "w"), separators=(",", ":"))
-print("bundle.json:", os.path.getsize("bundle.json") // 1024, "KB")
+    json.dump(bundle, open(out, "w"), separators=(",", ":"))
+    print(f"{out}:", os.path.getsize(out) // 1024, "KB")
+
+
+if __name__ == "__main__":
+    main()

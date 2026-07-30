@@ -1,11 +1,14 @@
-"""Build the self-contained data bundle for the simulator (first version).
+"""Function library for build_data2.py — the first-generation bundle builder.
 
-Superseded by build_data2.py, which imports the helpers below (ephem_row,
-sep_grid, obsc, simplify) and rebuilds the bundle with continental bounds and
-a signed-clearance band field. Running this file directly still produces the
-older, Iberia-only bundle.
+build_data2.py imports the helpers below (ephem_row, sep_grid, obsc, simplify,
+FLAT) and builds the shipped bundle itself, with continental bounds and a
+signed-clearance band field. Nothing here builds a shippable bundle any more:
+the Iberia-only layout this file was written for predates the current template
+(no `band` field, different grid), so running it would only produce data the
+simulator cannot read. It is kept because it is where those helpers live, and
+because the constants at the top are the ones the JavaScript is matched to.
 """
-import json, math, base64
+import json, math
 import numpy as np
 import ephem
 from datetime import datetime, timedelta, timezone
@@ -194,50 +197,9 @@ def coastlines():
 
 
 if __name__ == '__main__':
-    # ---------- assemble ----------
-    lons = np.arange(LON0, LON1 + 1e-9, DLON)
-    lats = np.arange(LAT0, LAT1 + 1e-9, DLAT)
-    LONg, LATg = np.meshgrid(lons, lats)
-    phi = np.radians(LATg)
-    u = np.arctan(FLAT * np.tan(phi))
-    RC = np.cos(u); RS = FLAT * np.sin(u)
-
-    bundle = {"grid": {"lon0": LON0, "lat0": LAT0, "dlon": DLON, "dlat": DLAT,
-                       "nx": len(lons), "ny": len(lats)},
-              "coast": coastlines(), "events": {}}
-    print("coast rings:", len(bundle["coast"]),
-          "points:", sum(len(r) for r in bundle["coast"]))
-
-    for key, ev in EVENTS.items():
-        t0, rows = build_table(ev)
-        rows = unwrap_ra(rows)
-
-        O = np.zeros(LONg.shape)
-        band = np.zeros(LONg.shape, dtype=bool)
-        fine = []
-        for i in range(len(rows) - 1):
-            fine.append(rows[i])
-            a, b = np.array(rows[i]), np.array(rows[i + 1])
-            fine.append(list((a + b) / 2))          # half-step, keeps the peak from slipping
-        fine.append(rows[-1])
-        for r in fine:
-            sep, s1, s2 = sep_grid(r, LATg, LONg, RC, RS)
-            O = np.maximum(O, obsc(sep, s1, s2))
-            band |= (sep <= np.abs(s1 - s2))
-
-        q = np.round(O * 254).astype(np.uint8)
-        q[band] = 255
-        bundle["events"][key] = {
-            "label": ev["label"], "kind": ev["kind"], "tz": ev["tz"], "tzn": ev["tzn"],
-            "date": list(ev["date"]),
-            "t0": t0.strftime("%H:%M"), "stepMin": STEP_MIN,
-            "eph": rows,
-            "line": central_line(ev),
-            "obsc": base64.b64encode(q.tobytes()).decode(),
-        }
-        print(f"{key}: {len(rows)} eph rows, centre line {len(bundle['events'][key]['line'])} pts, "
-              f"band cells {int(band.sum())}, peak obsc {O.max()*100:.2f}%")
-
-    json.dump(bundle, open("bundle.json", "w"), separators=(",", ":"))
-    import os
-    print("bundle.json:", os.path.getsize("bundle.json") // 1024, "KB")
+    raise SystemExit(
+        "build_data.py is a function library now — it no longer builds a bundle the\n"
+        "template can read (Iberia-only grid, no band field). Build the shipped data with:\n"
+        "    python3 build_data2.py        # -> bundle.json\n"
+        "or the whole site in one go with:\n"
+        "    python3 build_site.py all    # fetch -> build -> inject")

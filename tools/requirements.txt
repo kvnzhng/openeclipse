@@ -1,6 +1,12 @@
+# Exact pins: the bundle is data, and a library update that shifts a position by
+# an arcsecond would silently change the shipped numbers.
+
 # Geocentric apparent positions of the Sun and Moon.
 # PyEphem wraps XEphem's libastro. https://rhodesmill.org/pyephem/
-ephem>=4.1
+ephem==4.2.1
 
 # Vectorises the topocentric geometry over the lat/lon grid.
-numpy>=1.20
+numpy==2.1.3
+
+# Runs the test suite in this directory.
+pytest==8.3.4
