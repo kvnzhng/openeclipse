@@ -18,6 +18,9 @@ any observing site, and lets you scrub through the whole event on a timeline.
   and totality duration.
 - Timeline scrubbing with play/pause, jump to start or maximum, selectable time zone,
   and 1×–600× playback. Clicking a contact time seeks the timeline to that moment.
+- **SYNC** follows the eclipse in real time, so on the day you can watch your own sky and
+  the simulated one together. It is only available while the eclipse is actually under
+  way; at any other time it explains when that window is.
 
 ## How it works
 

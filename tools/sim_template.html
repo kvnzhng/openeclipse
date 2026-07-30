@@ -42,12 +42,16 @@ header{display:flex;align-items:center;gap:14px;padding:9px 14px;background:#080
 .spot{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:nowrap;min-width:0}
 select,input[type=number]{background:var(--panel);color:var(--ink);border:1px solid var(--edge2);
   border-radius:3px;padding:5px 7px;font-family:var(--mono);font-size:11px}
-.coord{color:var(--dim);font-size:11px}
+/* A flex row that cannot shrink. As a shrinkable block it could be squeezed
+   narrower than "lat" plus its input, and the label would wrap above the box.
+   All the give in this group belongs to the search field instead. */
+.coord{color:var(--dim);font-size:11px;display:flex;align-items:center;gap:5px;
+  flex:0 0 auto;white-space:nowrap}
 
 /* place search. The header needs a stacking context of its own, otherwise the
    suggestion list paints underneath the canvases, which come later in the DOM. */
 header{position:relative;z-index:20}
-.search{position:relative;flex:1 1 160px;min-width:96px}
+.search{position:relative;flex:1 1 150px;min-width:80px}
 #place{width:100%;background:var(--panel);color:var(--ink);border:1px solid var(--edge2);
   border-radius:3px;padding:5px 7px;font-family:var(--mono);font-size:11px}
 #place::placeholder{color:var(--dim)}
@@ -156,6 +160,7 @@ main .pane[hidden]{display:none}
 .marks span{position:absolute;top:0;font-size:8px;color:var(--dim);transform:translateX(-50%)}
 .marks i{position:absolute;top:-12px;width:1px;height:8px;background:var(--edge2)}
 .marks i.c2{background:var(--hot);height:11px;top:-14px}
+.marks i.mx{background:var(--sun);height:13px;top:-16px}
 
 .hint .tch{display:none}
 
@@ -163,6 +168,12 @@ main .pane[hidden]{display:none}
   main{grid-template-columns:1fr;grid-template-rows:1fr 1fr}
   #mapPane{border-right:0;border-bottom:1px solid var(--edge)}
   .ridge{display:none}
+  /* tightened so brand + dates + search + lat/lon still share one row here;
+     at full size they stop fitting around 800px and the group drops below */
+  header{gap:10px}
+  .brand{font-size:13px}
+  .seg button{padding:5px 8px;font-size:10px}
+  .coord input[type=number]{width:64px!important}
 }
 
 /* Phones. The desktop layout survives here but is not pleasant: the header
@@ -210,6 +221,18 @@ main .pane[hidden]{display:none}
   .legend .bar{width:92px;height:6px}
   .zoom button{width:30px;height:30px}
 }
+/* sync dialog */
+#sync[aria-pressed=true]{background:var(--sun);color:#0A0D14;border-color:var(--sun);font-weight:700}
+dialog{max-width:22rem;margin:auto;background:var(--panel);color:var(--ink);
+  border:1px solid var(--edge2);border-radius:4px;padding:16px;
+  font-family:var(--mono);font-size:12px;line-height:1.55}
+dialog::backdrop{background:rgba(4,6,10,.7)}
+dialog h2{margin:0 0 9px;font-family:var(--disp);font-size:14px;color:var(--sun);font-weight:700}
+dialog p{margin:0 0 13px;color:var(--dim)}
+dialog b{color:var(--ink);font-weight:500}
+dialog button{background:var(--sun);color:#0A0D14;border:0;border-radius:3px;padding:6px 13px;
+  font-family:var(--mono);font-size:11px;font-weight:700;cursor:pointer}
+
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -307,6 +330,9 @@ main .pane[hidden]{display:none}
   <button class="tbtn" id="toStart" title="Jump to start">⏮</button>
   <button class="tbtn play" id="play" title="Play / pause">▶</button>
   <button class="tbtn" id="toMax" title="Jump to maximum">⏭</button>
+  <button class="tbtn" id="sync" aria-pressed="false"
+          style="width:auto;padding:0 9px;font-size:10px"
+          title="Follow the eclipse in real time">SYNC</button>
   <div class="track">
     <input type="range" id="scrub" min="0" max="1000" value="0">
     <div class="marks" id="marks"></div>
@@ -321,6 +347,12 @@ main .pane[hidden]{display:none}
   </div>
 </div>
 </div>
+
+<dialog id="syncDlg" aria-labelledby="syncTitle">
+  <h2 id="syncTitle">Live sync isn't available now</h2>
+  <p id="syncWhy"></p>
+  <button id="syncClose" autofocus>Close</button>
+</dialog>
 
 <script>
 const B = __BUNDLE__;
@@ -346,7 +378,7 @@ const PRESETS = {
 
 let evKey="2026", lat=43.38, lon=-8.41, ridgeDeg=0, tzOff=null;
 let skyZoom=1, follow=true, dpr=1;
-let tMin=0, playing=false, speed=60, lastFrame=0;
+let tMin=0, playing=false, speed=60, lastFrame=0, syncMode=false;
 let circCache=null;
 
 const $=id=>document.getElementById(id);
@@ -865,15 +897,24 @@ function refreshContacts(){
   const label=(p,txt)=>{ if(on(p)) m.insertAdjacentHTML("beforeend",
       `<span style="left:${p}%">${txt}</span>`); };
 
-  const p1=pct(CT.c1), p2=pct(CT.c2), p3=pct(CT.c3), p4=pct(CT.c4);
-  tick(p1); tick(p2,"c2"); tick(p3,"c2"); tick(p4);
-  label(p1,"C1"); label(p4,"C4");
-  // totality can be under a percent of the window, which put the C2 and C3
-  // labels on top of each other and read as one smeared word
+  const pMax=CT.maxObsc>0?pct(CT.tMax):null;
+  tick(pct(CT.c1)); tick(pct(CT.c2),"c2"); tick(pMax,"mx");
+  tick(pct(CT.c3),"c2"); tick(pct(CT.c4));
+
+  // Labels are merged whenever they would overlap. On a total eclipse C2,
+  // maximum and C3 all sit within a percent of the window and would otherwise
+  // smear into one unreadable run of text.
   const trackPx=m.getBoundingClientRect().width||300;
-  const minGap=(26/trackPx)*100;
-  if(on(p2)&&on(p3)&&p3-p2<minGap) label((p2+p3)/2,"C2·C3");
-  else { label(p2,"C2"); label(p3,"C3"); }
+  const minGap=(30/trackPx)*100;
+  const groups=[];
+  for(const mk of [{p:pct(CT.c1),t:"C1"},{p:pct(CT.c2),t:"C2"},{p:pMax,t:"MAX"},
+                   {p:pct(CT.c3),t:"C3"},{p:pct(CT.c4),t:"C4"}]
+                  .filter(x=>on(x.p)).sort((x,y)=>x.p-y.p)){
+    const g=groups[groups.length-1];
+    if(g&&mk.p-g.last<minGap){ g.t.push(mk.t); g.last=mk.p; g.sum+=mk.p; }
+    else groups.push({t:[mk.t],last:mk.p,sum:mk.p});
+  }
+  for(const g of groups) label(g.sum/g.t.length,g.t.join("·"));
 }
 
 function windowSpan(){
@@ -1065,12 +1106,11 @@ $("ilon").onchange=()=>setSpot(lat,parseFloat($("ilon").value)||lon,true);
 document.querySelectorAll(".seg [data-ev]").forEach(b=>b.onclick=()=>{
   document.querySelectorAll(".seg [data-ev]").forEach(x=>x.setAttribute("aria-pressed","false"));
   b.setAttribute("aria-pressed","true");
-  evKey=b.dataset.ev; tzOff=null; fillPresets(); fillTz();
+  exitSync(); evKey=b.dataset.ev; tzOff=null; fillPresets(); fillTz();
   tMin=-1e9; refreshContacts(); refresh();
 });
 document.querySelectorAll(".seg [data-sp]").forEach(b=>b.onclick=()=>{
-  document.querySelectorAll(".seg [data-sp]").forEach(x=>x.setAttribute("aria-pressed","false"));
-  b.setAttribute("aria-pressed","true"); speed=+b.dataset.sp;
+  exitSync(); setSpeedBtn(+b.dataset.sp);
 });
 $("szin").onclick=()=>{skyZoom=Math.min(80,skyZoom*1.5);drawSky();};
 $("szout").onclick=()=>{skyZoom=Math.max(0.4,skyZoom/1.5);drawSky();};
@@ -1084,10 +1124,11 @@ skyCv.addEventListener("wheel",e=>{
   drawSky();
 },{passive:false});
 $("ridge").oninput=e=>{ridgeDeg=+e.target.value;$("ridgeOut").textContent=ridgeDeg.toFixed(1)+"°";drawSky();};
-$("scrub").oninput=e=>{const [a,b]=windowSpan(); tMin=a+(b-a)*e.target.value/1000; refresh();};
-$("play").onclick=()=>{playing=!playing;$("play").textContent=playing?"❚❚":"▶";lastFrame=performance.now();};
-$("toStart").onclick=()=>{tMin=windowSpan()[0];refresh();};
-$("toMax").onclick=()=>{const CT=window.__contacts; if(CT&&CT.tMax!=null){tMin=CT.tMax;refresh();}};
+// any manual control takes the timeline off the live clock
+$("scrub").oninput=e=>{exitSync();const [a,b]=windowSpan(); tMin=a+(b-a)*e.target.value/1000; refresh();};
+$("play").onclick=()=>{exitSync();playing=!playing;$("play").textContent=playing?"❚❚":"▶";lastFrame=performance.now();};
+$("toStart").onclick=()=>{exitSync();tMin=windowSpan()[0];refresh();};
+$("toMax").onclick=()=>{exitSync();const CT=window.__contacts; if(CT&&CT.tMax!=null){tMin=CT.tMax;refresh();}};
 
 /* Expand either pane to fill the view and collapse the other, so you can work
    in just the map or just the sky. fit() resizes both canvases to their new
@@ -1109,8 +1150,59 @@ function setSolo(next){
 $("mapFull").onclick=()=>setSolo(solo==="map"?null:"map");
 $("skyFull").onclick=()=>setSolo(solo==="sky"?null:"sky");
 
+/* ---------- live sync ----------
+   tMin is minutes UTC within the eclipse day, so every comparison here is done
+   in UTC. getUTC* yields the correct instant wherever the viewer happens to be,
+   which is what makes this timezone-proof; the times shown to the user are then
+   formatted through clockStr/hm in whichever offset they have selected. */
+function nowMinUTC(){
+  const d=new Date();
+  return d.getUTCHours()*60+d.getUTCMinutes()+d.getUTCSeconds()/60+d.getUTCMilliseconds()/6e4;
+}
+function onEventDayUTC(){
+  const d=new Date(), [y,mo,da]=ev().date;
+  return d.getUTCFullYear()===y && d.getUTCMonth()+1===mo && d.getUTCDate()===da;
+}
+function syncable(){
+  if(!onEventDayUTC()) return false;
+  const [a,b]=windowSpan(), n=nowMinUTC();
+  return n>=a && n<=b;
+}
+function setSpeedBtn(v){
+  speed=v;
+  document.querySelectorAll(".seg [data-sp]").forEach(x=>
+    x.setAttribute("aria-pressed",String(+x.dataset.sp===v)));
+}
+function exitSync(){
+  if(!syncMode) return;
+  syncMode=false; $("sync").setAttribute("aria-pressed","false");
+}
+const MONTHS=["January","February","March","April","May","June",
+              "July","August","September","October","November","December"];
+function explainSync(){
+  const [a,b]=windowSpan(), [y,mo,da]=ev().date;
+  $("syncWhy").innerHTML=
+    "Sync follows the eclipse as it actually happens, so it only works while the "+
+    "eclipse is under way."+
+    "<br><br>That window is <b>"+da+" "+MONTHS[mo-1]+" "+y+", "+hm(a)+"–"+hm(b)+" "+
+    tzLabel(tzHours())+"</b>."+
+    "<br><br>Right now it is <b>"+new Date().toLocaleString(undefined,
+      {dateStyle:"medium",timeStyle:"short"})+"</b> where you are.";
+  $("syncDlg").showModal();
+}
+$("sync").onclick=()=>{
+  if(syncMode){ exitSync(); playing=false; $("play").textContent="▶"; return; }
+  if(!syncable()){ explainSync(); return; }
+  syncMode=true; $("sync").setAttribute("aria-pressed","true");
+  setSpeedBtn(1);
+  tMin=nowMinUTC();
+  playing=true; $("play").textContent="❚❚"; lastFrame=performance.now();
+  refresh();
+};
+$("syncClose").onclick=()=>$("syncDlg").close();
+
 /* clicking a contact-time stat parks the scrubber on that moment */
-function pause(){ if(playing){ playing=false; $("play").textContent="▶"; } }
+function pause(){ exitSync(); if(playing){ playing=false; $("play").textContent="▶"; } }
 function seekTo(t){
   if(t==null) return;
   pause();
@@ -1131,7 +1223,12 @@ for(const el of document.querySelectorAll(".stat.seek")){
 }
 
 function loop(now){
-  if(playing){
+  if(syncMode){
+    // read the wall clock every frame rather than accumulating elapsed time,
+    // so this cannot drift away from the real eclipse over a long session
+    if(!syncable()){ exitSync(); playing=false; $("play").textContent="▶"; }
+    else { tMin=nowMinUTC(); refresh(); }
+  }else if(playing){
     const dt=(now-lastFrame)/1000; lastFrame=now;
     tMin+=dt*speed/60;
     const [a,b]=windowSpan();

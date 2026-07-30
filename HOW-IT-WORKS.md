@@ -170,6 +170,23 @@ it, reversing the answer to the question the horizon tool exists to ask.
 current instant. The horizon-obstruction slider is a flat altitude cut-off; no terrain
 data is bundled, which the panel says plainly.
 
+## Live sync
+
+`tMin` is minutes UTC within the eclipse day, so SYNC does all of its comparison in UTC:
+`getUTCHours()` and friends give the correct instant wherever the viewer is, which is what
+makes the check timezone-proof. Times shown back to the user are then formatted through
+`clockStr()` in whichever offset they have selected, so the dialog quotes the window in
+their terms rather than in UTC.
+
+It is enabled only when today's UTC date matches the event date *and* the current UTC
+minute falls inside the observable window at the current pin. Otherwise the button opens a
+dialog naming the window and the current local time.
+
+While synced the animation loop reads the wall clock every frame rather than accumulating
+elapsed time, so it cannot drift away from the real eclipse over a long session. Any
+manual control — scrub, play, speed, the jump buttons, a contact-time click, or switching
+event — drops out of sync.
+
 ## Place search
 
 The only part of the app that touches the network. Typing two or more characters queries
